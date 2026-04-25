@@ -6,7 +6,7 @@ See [`docs/PROMPT.md`](./docs/PROMPT.md) for the full project brief and slice pl
 
 ## Status
 
-**Slice 1 — Skeleton.** Next.js + Tailwind + shadcn + Supabase Auth, empty dashboard deployable to Vercel. Budgets, Basiq, merchant resolution, and the agent come in later slices.
+**Slice 3 — Basiq sandbox connect.** Auth + budgets dashboard + bank connection flow with daily cron sync and transfer detection across user accounts. Merchant resolution (Slice 4) and the AI agent (Slice 6) are next.
 
 ## Setup
 
@@ -28,8 +28,24 @@ pnpm install
 
 ```bash
 cp .env.example .env.local
-# fill in Supabase values; the rest can stay empty until later slices
+# fill in Supabase + Basiq values; Vertex/Cron are needed for later slices
 ```
+
+### 3a. Configure Basiq (Slice 3+)
+
+1. Sign up at [dashboard.basiq.io](https://dashboard.basiq.io) (free sandbox).
+2. **API Keys → Create** with `SERVER_ACCESS` scope. Copy the key into `BASIQ_API_KEY`.
+3. **Applications → New** (or default). Set the **Redirect URL** to:
+   - `https://metri-x.vercel.app/api/basiq/callback` (for prod testing)
+   - `http://localhost:3000/api/basiq/callback` (for local dev — add as a second redirect URL if Basiq permits, or maintain separate apps for dev/prod)
+
+### 3b. Generate a `CRON_SECRET` (Slice 3+)
+
+```bash
+openssl rand -hex 32
+```
+
+Copy the output into `CRON_SECRET` locally and in Vercel. Vercel Cron sends this as a Bearer token to the cron handler so unauthorised hits get rejected.
 
 ### 4. Run
 
@@ -56,7 +72,11 @@ Visit `http://localhost:3000`. You'll be redirected to `/login`. Create an accou
 
 - `app/(auth)/` — login, signup, auth callback
 - `app/(app)/` — authed routes (dashboard, transactions, budgets, trends, chat, settings)
-- `app/api/` — basiq, agent, cron handlers (filled in Slices 3, 6, 3 respectively)
-- `lib/supabase/` — server, browser, and proxy clients
-- `lib/db/` — Drizzle schema and client
-- `proxy.ts` — Next.js 16 proxy (formerly middleware) that refreshes Supabase sessions and gates `/(app)` routes
+- `app/api/basiq/` — Basiq Connect callback
+- `app/api/cron/sync/` — daily transaction sync (Vercel Cron)
+- `lib/basiq/` — REST client, sync logic, transfer detection
+- `lib/budgets/` — calc + Supabase queries
+- `lib/supabase/` — server, browser, admin (service-role) clients
+- `lib/db/` — Drizzle schema (source of truth for migrations)
+- `drizzle/` — generated migration SQL (apply via Supabase SQL Editor)
+- `proxy.ts` — Next.js 16 proxy that refreshes Supabase sessions and gates `/(app)` routes

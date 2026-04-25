@@ -1,7 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/auth", "/_next", "/favicon.ico"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/signup",
+  "/auth",
+  "/_next",
+  "/favicon.ico",
+  "/api/cron", // hit by Vercel Cron with CRON_SECRET, no user session
+];
 
 function isPublicPath(pathname: string) {
   if (pathname === "/") return true;

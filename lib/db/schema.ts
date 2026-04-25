@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   date,
   index,
   integer,
@@ -72,6 +73,49 @@ export const budgets = pgTable(
   ],
 ).enableRLS();
 
+// Bank connection: one row per (user, Basiq connection).
+// basiq_user_id is denormalised — Basiq has one user object per app user, but we
+// copy that id onto each connection row to avoid a separate user_profiles table
+// for one column. Slice 5+ may consolidate.
+export const bankConnections = pgTable(
+  "bank_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    basiqUserId: text("basiq_user_id").notNull(),
+    basiqConnectionId: text("basiq_connection_id").notNull(),
+    institutionName: text("institution_name"),
+    status: text("status").notNull().default("active"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("bank_connections_user_basiq_uniq").on(t.userId, t.basiqConnectionId),
+    pgPolicy("bank_connections_select_own", {
+      for: "select",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("bank_connections_insert_own", {
+      for: "insert",
+      to: "authenticated",
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("bank_connections_update_own", {
+      for: "update",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("bank_connections_delete_own", {
+      for: "delete",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+  ],
+).enableRLS();
+
 // Negative amount_cents = outflow (spend). Positive = inflow (income/refund).
 // category is nullable in v1 because Slice 4's Gemini-driven resolver fills it in later.
 export const transactions = pgTable(
@@ -83,11 +127,19 @@ export const transactions = pgTable(
     category: categoryEnum("category"),
     amountCents: integer("amount_cents").notNull(),
     transactionDate: date("transaction_date").notNull(),
+    // Basiq linkage — nullable so manually-seeded txns work alongside real ones.
+    basiqTransactionId: text("basiq_transaction_id"),
+    accountId: text("account_id"),
+    pending: boolean("pending").notNull().default(false),
+    isTransfer: boolean("is_transfer").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("transactions_user_date_idx").on(t.userId, t.transactionDate),
+    uniqueIndex("transactions_basiq_id_uniq")
+      .on(t.basiqTransactionId)
+      .where(sql`${t.basiqTransactionId} is not null`),
     pgPolicy("transactions_select_own", {
       for: "select",
       to: "authenticated",
@@ -116,3 +168,5 @@ export type Budget = typeof budgets.$inferSelect;
 export type NewBudget = typeof budgets.$inferInsert;
 export type Transaction = typeof transactions.$inferSelect;
 export type NewTransaction = typeof transactions.$inferInsert;
+export type BankConnection = typeof bankConnections.$inferSelect;
+export type NewBankConnection = typeof bankConnections.$inferInsert;
