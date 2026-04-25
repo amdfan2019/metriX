@@ -1,7 +1,8 @@
 import { CheckCircle2, RefreshCw, TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { fetchUserConnections } from "@/lib/basiq/queries";
-import { startBankConnection, manualSync } from "./actions";
+import { startBankConnection, manualSync, pullFromBasiq } from "./actions";
+import { MobileForm } from "./mobile-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
     data: { user },
   } = await supabase.auth.getUser();
   const connections = await fetchUserConnections();
+  const userMobile = (user?.user_metadata?.mobile as string | undefined) ?? null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-8 space-y-6">
@@ -62,6 +64,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
           <CardTitle>Account</CardTitle>
           <CardDescription>Signed in as {user?.email}</CardDescription>
         </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Mobile</p>
+            <p className="text-xs text-muted-foreground">
+              Required by Basiq for SMS consent verification. AU format only.
+            </p>
+          </div>
+          <MobileForm defaultValue={userMobile} />
+        </CardContent>
       </Card>
 
       <Card>
@@ -105,11 +116,22 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
             </ul>
           )}
 
-          <form action={startBankConnection}>
-            <Button type="submit">
-              {connections.length === 0 ? "Connect a bank" : "Connect another bank"}
-            </Button>
-          </form>
+          <div className="flex flex-wrap gap-2">
+            <form action={startBankConnection}>
+              <Button type="submit">
+                {connections.length === 0 ? "Connect a bank" : "Connect another bank"}
+              </Button>
+            </form>
+            <form action={pullFromBasiq}>
+              <Button type="submit" variant="outline">
+                Pull from Basiq
+              </Button>
+            </form>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            If Basiq doesn&apos;t auto-redirect back after consent, click <strong>Pull from
+            Basiq</strong> to reconcile.
+          </p>
         </CardContent>
       </Card>
     </div>

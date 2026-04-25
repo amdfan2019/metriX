@@ -137,9 +137,10 @@ export const transactions = pgTable(
   },
   (t) => [
     index("transactions_user_date_idx").on(t.userId, t.transactionDate),
-    uniqueIndex("transactions_basiq_id_uniq")
-      .on(t.basiqTransactionId)
-      .where(sql`${t.basiqTransactionId} is not null`),
+    // Postgres allows multiple NULLs in a regular unique index by default
+    // (NULLS DISTINCT), so we don't need a partial predicate. A partial index
+    // would also break ON CONFLICT upserts via PostgREST.
+    uniqueIndex("transactions_basiq_id_uniq").on(t.basiqTransactionId),
     pgPolicy("transactions_select_own", {
       for: "select",
       to: "authenticated",

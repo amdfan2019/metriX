@@ -77,17 +77,24 @@ async function basiqRequest<T>(path: string, opts: RequestOptions = {}): Promise
     }
   }
 
-  const res = await fetch(url, {
-    method: opts.method ?? "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "basiq-version": API_VERSION,
-      Accept: "application/json",
-      ...(opts.body ? { "Content-Type": "application/json" } : {}),
-    },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-    cache: "no-store",
-  });
+  const method = opts.method ?? "GET";
+  // Basiq's POST endpoints require Content-Type: application/json even when
+  // there's no payload (e.g. /auth_link), so we always set it on writes and
+  // send an empty `{}` body if the caller didn't provide one.
+  const sendsBody = method === "POST";
+  const bodyValue = opts.body !== undefined ? opts.body : sendsBody ? {} : null;
+  const bodyString = bodyValue !== null ? JSON.stringify(bodyValue) : undefined;
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    "basiq-version": API_VERSION,
+    Accept: "application/json",
+  };
+  if (bodyString !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const res = await fetch(url, { method, headers, body: bodyString, cache: "no-store" });
 
   if (!res.ok) {
     const body = await res.text();
@@ -128,10 +135,11 @@ export const basiq = {
    */
   async createAuthLink(
     basiqUserId: string,
-    options: { successUrl?: string; errorUrl?: string } = {},
+    options: { successUrl?: string; errorUrl?: string; mobile?: string } = {},
   ): Promise<BasiqAuthLink> {
     const link = await basiqRequest<BasiqAuthLink>(`/users/${basiqUserId}/auth_link`, {
       method: "POST",
+      body: options.mobile ? { mobile: options.mobile } : {},
     });
 
     if (options.successUrl || options.errorUrl) {
