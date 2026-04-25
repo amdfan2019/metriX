@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
+    "@google/genai": "^1.50.1",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.104.1",
     "class-variance-authority": "^0.7.1",

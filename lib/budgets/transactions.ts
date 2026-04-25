@@ -4,7 +4,10 @@ import type { Category } from "@/lib/db/schema";
 export interface TransactionListRow {
   id: string;
   description: string;
+  merchantName: string | null;
   category: Category | null;
+  confidence: number | null;
+  needsReview: boolean;
   amountCents: number;
   transactionDate: string;
   pending: boolean;
@@ -24,7 +27,9 @@ export async function fetchUserTransactions(
   const supabase = await createClient();
   let query = supabase
     .from("transactions")
-    .select("id, description, category, amount_cents, transaction_date, pending, is_transfer, basiq_transaction_id")
+    .select(
+      "id, description, merchant_name, category, confidence, needs_review, amount_cents, transaction_date, pending, is_transfer, basiq_transaction_id",
+    )
     .order("transaction_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -37,7 +42,10 @@ export async function fetchUserTransactions(
   return (data ?? []).map((r) => ({
     id: r.id as string,
     description: r.description as string,
+    merchantName: r.merchant_name as string | null,
     category: r.category as Category | null,
+    confidence: r.confidence != null ? Number(r.confidence) : null,
+    needsReview: r.needs_review as boolean,
     amountCents: r.amount_cents as number,
     transactionDate: r.transaction_date as string,
     pending: r.pending as boolean,

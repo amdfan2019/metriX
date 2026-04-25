@@ -4,6 +4,7 @@ import {
   date,
   index,
   integer,
+  numeric,
   pgEnum,
   pgPolicy,
   pgTable,
@@ -132,6 +133,10 @@ export const transactions = pgTable(
     accountId: text("account_id"),
     pending: boolean("pending").notNull().default(false),
     isTransfer: boolean("is_transfer").notNull().default(false),
+    // Slice 4 (merchant resolution) populates these:
+    merchantName: text("merchant_name"),
+    needsReview: boolean("needs_review").notNull().default(false),
+    confidence: numeric("confidence", { precision: 4, scale: 3 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -165,9 +170,58 @@ export const transactions = pgTable(
   ],
 ).enableRLS();
 
+// Source of the alias: who/what asserted that raw_description maps to this
+// merchant + category. 'user' overrides everything else (manual confirmation
+// or correction); 'gemini' is the LLM resolver's output.
+export const aliasSourceEnum = pgEnum("alias_source", ["user", "gemini"]);
+
+// Per-user mapping from a raw transaction description (as it appears on the
+// statement) to a canonical merchant + category. Filled in by the Slice 4
+// resolver and by user confirmations from the needs-review queue.
+export const merchantAliases = pgTable(
+  "merchant_aliases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    rawDescription: text("raw_description").notNull(),
+    merchantName: text("merchant_name").notNull(),
+    category: categoryEnum("category").notNull(),
+    source: aliasSourceEnum("source").notNull(),
+    confidence: numeric("confidence", { precision: 4, scale: 3 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("merchant_aliases_user_raw_uniq").on(t.userId, t.rawDescription),
+    pgPolicy("merchant_aliases_select_own", {
+      for: "select",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("merchant_aliases_insert_own", {
+      for: "insert",
+      to: "authenticated",
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("merchant_aliases_update_own", {
+      for: "update",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("merchant_aliases_delete_own", {
+      for: "delete",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+  ],
+).enableRLS();
+
 export type Budget = typeof budgets.$inferSelect;
 export type NewBudget = typeof budgets.$inferInsert;
 export type Transaction = typeof transactions.$inferSelect;
 export type NewTransaction = typeof transactions.$inferInsert;
 export type BankConnection = typeof bankConnections.$inferSelect;
 export type NewBankConnection = typeof bankConnections.$inferInsert;
+export type MerchantAlias = typeof merchantAliases.$inferSelect;
+export type NewMerchantAlias = typeof merchantAliases.$inferInsert;
