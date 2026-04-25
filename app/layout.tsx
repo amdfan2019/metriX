@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ledger",
+  title: "metriX",
   description: "AI-first personal finance tracker.",
 };
 

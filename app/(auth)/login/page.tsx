@@ -19,7 +19,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
     <Card>
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
-        <CardDescription>Welcome back to Ledger.</CardDescription>
+        <CardDescription>Welcome back to metriX.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {banner && (

@@ -1,4 +1,4 @@
-# Project: Personal Finance Agent ("Ledger" — working name, change if you want)
+# Project: metriX — Personal Finance Agent
 
 ## What we're building
 

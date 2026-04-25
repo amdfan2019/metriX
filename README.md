@@ -1,4 +1,4 @@
-# Ledger
+# metriX
 
 AI-first personal finance tracker. Connects to AU bank accounts via Basiq, categorises transactions with Gemini, and surfaces proactive insights (burn rate, anomalies, recurring subscriptions, can-I-afford-this-tonight) instead of just charts.
 

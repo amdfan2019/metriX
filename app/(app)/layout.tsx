@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     <div className="grid min-h-svh grid-cols-1 md:grid-cols-[16rem_minmax(0,1fr)]">
       <aside className="hidden border-r bg-sidebar text-sidebar-foreground md:flex md:flex-col">
         <div className="px-5 py-5">
-          <p className="text-base font-semibold tracking-tight">Ledger</p>
+          <p className="text-base font-semibold tracking-tight">metriX</p>
           <p className="text-xs text-sidebar-foreground/60">Personal finance, AI-first</p>
         </div>
         <Separator className="bg-sidebar-border" />
