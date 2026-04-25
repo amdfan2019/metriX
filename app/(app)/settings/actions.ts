@@ -25,7 +25,11 @@ export async function startBankConnection() {
     if (error) throw new Error(`Failed to persist Basiq user id: ${error.message}`);
   }
 
-  const link = await basiq.createAuthLink(basiqUserId);
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const link = await basiq.createAuthLink(basiqUserId, {
+    successUrl: `${origin}/api/basiq/callback`,
+    errorUrl: `${origin}/settings?error=basiq-cancelled`,
+  });
   redirect(link.links.public);
 }
 

@@ -35,9 +35,8 @@ cp .env.example .env.local
 
 1. Sign up at [dashboard.basiq.io](https://dashboard.basiq.io) (free sandbox).
 2. **API Keys → Create** with `SERVER_ACCESS` scope. Copy the key into `BASIQ_API_KEY`.
-3. **Applications → New** (or default). Set the **Redirect URL** to:
-   - `https://metri-x.vercel.app/api/basiq/callback` (for prod testing)
-   - `http://localhost:3000/api/basiq/callback` (for local dev — add as a second redirect URL if Basiq permits, or maintain separate apps for dev/prod)
+
+That's it. We pass `success=` / `error=` query params on the Consent UI URL at request time, so no Basiq application-level redirect URL config is needed.
 
 ### 3b. Generate a `CRON_SECRET` (Slice 3+)
 

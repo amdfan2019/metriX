@@ -117,11 +117,31 @@ export const basiq = {
     return basiqRequest<BasiqUser>(`/users/${basiqUserId}`);
   },
 
-  /** Create an auth link for the consent flow. Returns the public URL to redirect to. */
-  async createAuthLink(basiqUserId: string): Promise<BasiqAuthLink> {
-    return basiqRequest<BasiqAuthLink>(`/users/${basiqUserId}/auth_link`, {
+  /**
+   * Create an auth link for the consent flow. The returned `links.public` URL
+   * is the Basiq Consent UI for the user to authenticate with their bank.
+   *
+   * `successUrl` and `errorUrl` are appended as query params on the consent URL
+   * — Basiq honours them as per-session overrides of any app-level redirect
+   * config, which means we don't need to configure redirect URLs in the Basiq
+   * dashboard at all.
+   */
+  async createAuthLink(
+    basiqUserId: string,
+    options: { successUrl?: string; errorUrl?: string } = {},
+  ): Promise<BasiqAuthLink> {
+    const link = await basiqRequest<BasiqAuthLink>(`/users/${basiqUserId}/auth_link`, {
       method: "POST",
     });
+
+    if (options.successUrl || options.errorUrl) {
+      const url = new URL(link.links.public);
+      if (options.successUrl) url.searchParams.set("success", options.successUrl);
+      if (options.errorUrl) url.searchParams.set("error", options.errorUrl);
+      link.links.public = url.toString();
+    }
+
+    return link;
   },
 
   async listConnections(basiqUserId: string): Promise<BasiqConnection[]> {
