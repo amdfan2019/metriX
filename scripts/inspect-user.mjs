@@ -100,10 +100,12 @@ try {
     console.log(`  ${b.category.padEnd(14)} ${fmt(b.monthly_cap_cents)}`);
   }
 
-  // Account ids to exclude from spend math (mortgage / savings / loan / investment).
+  // Account ids to exclude from spend math. Mortgage and loan are now COUNTED
+  // (interest charges + repayments are real outflows); only savings/investment
+  // are skipped (those are asset transfers).
   const nonSpendable = await sql`
     SELECT basiq_account_id FROM accounts
-    WHERE user_id = ${userId} AND account_class = ANY(${["mortgage", "loan", "savings", "investment"]})
+    WHERE user_id = ${userId} AND account_class = ANY(${["savings", "investment"]})
   `;
   const excludedIds = nonSpendable.map((r) => r.basiq_account_id);
 
@@ -151,7 +153,7 @@ try {
   `;
   const upcomingByCat = Object.fromEntries(upcomingByCatRaw.map((r) => [r.category, r.cents]));
 
-  console.log(`\n--- THIS MONTH SPEND (${monthStart} → ${todayISO})  [excl. mortgage / savings] ---`);
+  console.log(`\n--- THIS MONTH SPEND (${monthStart} → ${todayISO})  [excl. savings / investment] ---`);
   let totalSpent = 0;
   for (const r of monthSpend) {
     const cap = budgets.find((b) => b.category === r.category)?.monthly_cap_cents;

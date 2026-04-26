@@ -155,6 +155,16 @@ export async function rescanRecurringForUser(
       continue;
     }
 
+    // Stale at detection? A series whose computed next_expected_date is more
+    // than one cadence in the past is "we found 4 months of history but it
+    // stopped" — write it as inactive on first sight rather than rely on the
+    // post-pass to flip it later (the post-pass skips refreshed rows).
+    const cadenceDays = CADENCE_WINDOWS[s.cadence].centerDays;
+    const isStaleAtDetection =
+      s.nextExpectedDate <= todayISO &&
+      daysBetween(s.nextExpectedDate, todayISO) > cadenceDays;
+    const detectionStatus: "active" | "inactive" = isStaleAtDetection ? "inactive" : "active";
+
     if (existing) {
       const updatePayload: Record<string, unknown> = {
         category: s.category,
@@ -165,7 +175,7 @@ export async function rescanRecurringForUser(
         last_seen_date: s.lastSeenDate,
         next_expected_date: s.nextExpectedDate,
         leg_count: s.legCount,
-        status: "active" as const,
+        status: detectionStatus,
         confidence: s.confidence,
       };
       const { error: upErr } = await supabase
@@ -174,6 +184,7 @@ export async function rescanRecurringForUser(
         .eq("id", existing.id);
       if (upErr) throw new Error(`recurring scan: update failed: ${upErr.message}`);
       summary.updated++;
+      if (detectionStatus === "inactive") summary.markedInactive++;
       refreshedSeriesIds.add(existing.id);
       await linkLegs(supabase, userId, existing.id, s.legIds);
     } else {
@@ -192,13 +203,14 @@ export async function rescanRecurringForUser(
           last_seen_date: s.lastSeenDate,
           next_expected_date: s.nextExpectedDate,
           leg_count: s.legCount,
-          status: "active",
+          status: detectionStatus,
           source: "detected",
           confidence: s.confidence,
         })
         .select("id")
         .single();
       if (insErr) throw new Error(`recurring scan: insert failed: ${insErr.message}`);
+      if (detectionStatus === "inactive") summary.markedInactive++;
       summary.inserted++;
       const newId = inserted!.id as string;
       refreshedSeriesIds.add(newId);

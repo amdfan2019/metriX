@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Category } from "@/lib/db/schema";
 import type { CalcTransaction } from "./calc";
+// Re-exported for consumers that built around it; the canonical source is
+// in spendable-accounts.ts.
 import { fetchNonSpendableAccountIds } from "./spendable-accounts";
 
 export interface BudgetRow {

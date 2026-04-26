@@ -4,19 +4,22 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * Account classes excluded from "spend math" (totals, projections, variable-
  * spend baseline, can-i-afford, etc).
  *
- * - mortgage / loan: interest charges and principal repayments aren't
- *   discretionary spending. Excluding here keeps the on-track widget honest.
  * - savings: money flowing in or out of savings is a transfer from elsewhere;
- *   counting outflows would double-count, counting inflows isn't real income.
- * - investment: same reasoning — funds movement, not consumption.
+ *   counting outflows would double-count the matching transaction-account
+ *   spend, counting inflows isn't real income — they're savings deposits.
+ *   Mirror-pair transfer detection catches the typical case anyway.
+ * - investment: same reasoning — asset movement, not consumption.
  *
  * `transaction` and `credit-card` accounts ARE counted: each card swipe is a
  * real expense, and the matching bill payment is transfer-tagged separately
  * so we don't double-count.
+ *
+ * `mortgage` and `loan` are also counted — interest charges and loan
+ * repayments are real outflows that hit the user's net cash position.
+ * Excluding them would understate "money out" and let the on-track widget
+ * lie. The user has to budget for them like anything else.
  */
 export const NON_SPENDABLE_ACCOUNT_CLASSES = [
-  "mortgage",
-  "loan",
   "savings",
   "investment",
 ] as const;
