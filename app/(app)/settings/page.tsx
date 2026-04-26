@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CheckCircle2, RefreshCw, TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { fetchUserConnections } from "@/lib/basiq/queries";
@@ -36,10 +37,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
   const userMobile = (user?.user_metadata?.mobile as string | undefined) ?? null;
   const incomeDollars =
     settings.monthlyIncomeCents != null ? Math.round(settings.monthlyIncomeCents / 100) : null;
-  const savingsDollars =
-    settings.monthlySavingsTargetCents != null
-      ? Math.round(settings.monthlySavingsTargetCents / 100)
-      : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-8 space-y-6">
@@ -84,13 +81,16 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
           </div>
           <MobileForm defaultValue={userMobile} />
           <div className="space-y-1 pt-2">
-            <p className="text-sm font-medium">Monthly income & savings target</p>
+            <p className="text-sm font-medium">Monthly income</p>
             <p className="text-xs text-muted-foreground">
-              After-tax monthly take-home plus how much you want to set aside each month. Drives the
-              on-track view, the suggested budgets, and the AI agent&apos;s affordability checks.
+              After-tax monthly take-home. Your savings target and category budget caps live on{" "}
+              <Link href="/budgets" className="underline">
+                Budgets
+              </Link>{" "}
+              — they have to add up to this number.
             </p>
           </div>
-          <IncomeForm defaultIncomeDollars={incomeDollars} defaultSavingsDollars={savingsDollars} />
+          <IncomeForm defaultIncomeDollars={incomeDollars} />
         </CardContent>
       </Card>
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { fetchUserBudgets } from "@/lib/budgets/queries";
 import { listSpendingCategories } from "@/lib/budgets/calc";
 import { fetchUserBudgetSettings } from "@/lib/budgets/income";
-import { suggestBudgets } from "@/lib/budgets/suggest";
+import { suggestBudgets, DEFAULT_SAVINGS_RATIO } from "@/lib/budgets/suggest";
 import { BudgetsForm } from "./budgets-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
@@ -107,7 +107,25 @@ export default async function BudgetsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <BudgetsForm initialValues={initialValues} hasSuggestions={hasIncome} />
+          <BudgetsForm
+            initialValues={initialValues}
+            hasSuggestions={hasIncome}
+            incomeDollars={
+              settings.monthlyIncomeCents != null
+                ? Math.round(settings.monthlyIncomeCents / 100)
+                : null
+            }
+            savingsTargetDollars={
+              settings.monthlySavingsTargetCents != null
+                ? Math.round(settings.monthlySavingsTargetCents / 100)
+                : null
+            }
+            suggestedSavingsDollars={
+              hasIncome && settings.monthlyIncomeCents != null
+                ? Math.round((settings.monthlyIncomeCents * DEFAULT_SAVINGS_RATIO) / 100)
+                : 0
+            }
+          />
         </CardContent>
       </Card>
     </div>

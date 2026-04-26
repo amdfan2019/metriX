@@ -7,30 +7,21 @@ import { basiq } from "@/lib/basiq/client";
 import { syncTransactionsForUser } from "@/lib/basiq/sync";
 
 export type SaveMobileState = { ok: true } | { error: string } | undefined;
-export type SaveBudgetSettingsState = { ok: true } | { error: string } | undefined;
+export type SaveIncomeState = { ok: true } | { error: string } | undefined;
 
 /**
- * Stores monthly income + savings target in user_settings. Both fields go in
- * one upsert so the suggested-budget engine sees the new state in a single
- * revalidation cycle.
+ * Stores monthly income only. Savings target lives on the /budgets page now —
+ * it's part of the monthly allocation alongside category caps, and the
+ * combined math has to equal income.
  */
-export async function saveBudgetSettings(
-  _prev: SaveBudgetSettingsState,
+export async function saveIncome(
+  _prev: SaveIncomeState,
   formData: FormData,
-): Promise<SaveBudgetSettingsState> {
+): Promise<SaveIncomeState> {
   const incomeRaw = String(formData.get("incomeDollars") ?? "").trim();
-  const savingsRaw = String(formData.get("savingsDollars") ?? "").trim();
-
   const income = Number(incomeRaw);
   if (!Number.isFinite(income) || income < 0) {
     return { error: "Income must be a non-negative number." };
-  }
-  const savings = savingsRaw === "" ? 0 : Number(savingsRaw);
-  if (!Number.isFinite(savings) || savings < 0) {
-    return { error: "Savings target must be a non-negative number." };
-  }
-  if (savings > income) {
-    return { error: "Savings target can't exceed income." };
   }
 
   const supabase = await createClient();
@@ -42,11 +33,7 @@ export async function saveBudgetSettings(
   const { error } = await supabase
     .from("user_settings")
     .upsert(
-      {
-        user_id: user.id,
-        monthly_income_cents: Math.round(income * 100),
-        monthly_savings_target_cents: Math.round(savings * 100),
-      },
+      { user_id: user.id, monthly_income_cents: Math.round(income * 100) },
       { onConflict: "user_id" },
     );
   if (error) return { error: error.message };
