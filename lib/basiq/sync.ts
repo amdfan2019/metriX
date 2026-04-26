@@ -9,6 +9,15 @@ export interface SyncResult {
   upserted: number;
   transfers: number;
   recurringDetected: number;
+  accountsUpserted: number;
+}
+
+/** Convert Basiq's decimal-string balance to integer cents. Null-safe. */
+function decimalToCents(value: string | undefined | null): number | null {
+  if (value == null) return null;
+  const n = parseFloat(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n * 100);
 }
 
 interface SyncOptions {
@@ -54,6 +63,16 @@ export async function syncTransactionsForUser(
 
   const transfers = await detectTransfersForUser(supabase, appUserId);
 
+  // Pull the latest account balances. Drives the cashflow forecast (Slice 8)
+  // and the dashboard balance card. Failures here don't fail the whole sync —
+  // transactions are the primary signal.
+  let accountsUpserted = 0;
+  try {
+    accountsUpserted = await syncAccountsForUser(supabase, appUserId, basiqUserId);
+  } catch (e) {
+    console.error(`[sync] account pull failed for ${appUserId}:`, e);
+  }
+
   // Recurring detection runs after transfer detection so its inputs already
   // exclude transfer legs (the detector also filters them, but consistency
   // matters when a manual seed bypasses the transfer pass).
@@ -69,7 +88,45 @@ export async function syncTransactionsForUser(
     upserted: txns.length,
     transfers,
     recurringDetected: recurring.detected,
+    accountsUpserted,
   };
+}
+
+/**
+ * Pulls the user's Basiq account list and upserts into the `accounts` table.
+ * Each row carries current + available balance plus account-class metadata
+ * so the cashflow simulator knows which accounts count as spendable.
+ */
+export async function syncAccountsForUser(
+  supabase: SupabaseClient,
+  appUserId: string,
+  basiqUserId: string,
+): Promise<number> {
+  const accounts = await basiq.listAccounts(basiqUserId);
+  if (accounts.length === 0) return 0;
+
+  const rows = accounts.map((a) => ({
+    user_id: appUserId,
+    basiq_account_id: a.id,
+    basiq_user_id: basiqUserId,
+    institution_name: null as string | null, // resolved separately if needed
+    account_name: a.name ?? null,
+    account_number: a.accountNo ?? null,
+    account_type: a.class?.product ?? null,
+    account_class: a.class?.type ?? null,
+    current_balance_cents: decimalToCents(a.balance),
+    available_balance_cents: decimalToCents(a.availableFunds),
+    currency: a.currency ?? "AUD",
+    status: a.status ?? "active",
+    balance_as_of: a.lastUpdated ?? new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase
+    .from("accounts")
+    .upsert(rows, { onConflict: "user_id,basiq_account_id" });
+  if (error) throw new Error(`Account upsert failed: ${error.message}`);
+  return rows.length;
 }
 
 /**

@@ -17,6 +17,8 @@ import { canIAfford } from "./can-i-afford";
 import { findTrends } from "./find-trends";
 import { getOverallHealth } from "./overall-health";
 import { getRecurringIncome } from "./recurring-income";
+import { getBalances } from "./balances";
+import { getCashflowForecast } from "./cashflow-forecast";
 
 export type ToolHandler = (
   supabase: SupabaseClient,
@@ -34,6 +36,8 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   find_trends: findTrends,
   get_overall_health: getOverallHealth,
   get_recurring_income: getRecurringIncome,
+  get_balances: getBalances,
+  get_cashflow_forecast: getCashflowForecast,
 };
 
 export type ToolName = keyof typeof TOOL_HANDLERS;

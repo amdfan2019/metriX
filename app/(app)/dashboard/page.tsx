@@ -18,6 +18,8 @@ import {
 } from "@/lib/budgets/overall";
 import { expectedRemainingThisMonthByCategory } from "@/lib/recurring/queries";
 import { fetchTodayBriefing } from "@/lib/agent/briefing";
+import { fetchUserAccounts, buildCashflowForecast } from "@/lib/cashflow/queries";
+import { BalancesCard } from "./balances-card";
 import type { Category } from "@/lib/db/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -78,10 +80,12 @@ export default async function DashboardPage() {
   }
 
   const briefing = user ? await fetchTodayBriefing(supabase, user.id) : null;
-  const [budgets, txns, committedRemaining] = await Promise.all([
+  const [budgets, txns, committedRemaining, accounts, forecast] = await Promise.all([
     fetchUserBudgets(),
     fetchCurrentMonthTransactions(today),
     expectedRemainingThisMonthByCategory(today),
+    fetchUserAccounts(),
+    buildCashflowForecast(today),
   ]);
   const settings = settingsForRedirect;
 
@@ -141,6 +145,8 @@ export default async function DashboardPage() {
         savingsProgressCents={overall.savingsProgressCents}
         savingsStatus={overall.savingsStatus}
       />
+
+      <BalancesCard accounts={accounts} forecast={forecast} />
 
       {alerts.length > 0 && (
         <Card className="border-destructive/40 bg-destructive/5">

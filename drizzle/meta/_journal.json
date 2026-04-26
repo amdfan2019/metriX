@@ -43,6 +43,13 @@
       "when": 1777208013796,
       "tag": "0005_broken_doctor_faustus",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777210599020,
+      "tag": "0006_friendly_mantis",
+      "breakpoints": true
     }
   ]
 }

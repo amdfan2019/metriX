@@ -1,4 +1,5 @@
 import type {
+  BasiqAccount,
   BasiqAuthLink,
   BasiqConnection,
   BasiqInstitution,
@@ -155,6 +156,18 @@ export const basiq = {
   async listConnections(basiqUserId: string): Promise<BasiqConnection[]> {
     const list = await basiqRequest<BasiqList<BasiqConnection>>(
       `/users/${basiqUserId}/connections`,
+    );
+    return list.data ?? [];
+  },
+
+  /**
+   * List the accounts Basiq has on file for a user — current + available
+   * balance per account, plus class/type so we can decide which accounts
+   * count toward "spendable balance" for the cashflow forecast.
+   */
+  async listAccounts(basiqUserId: string): Promise<BasiqAccount[]> {
+    const list = await basiqRequest<BasiqList<BasiqAccount>>(
+      `/users/${basiqUserId}/accounts`,
     );
     return list.data ?? [];
   },

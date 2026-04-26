@@ -320,6 +320,10 @@ export const userSettings = pgTable(
     userId: uuid("user_id").primaryKey(),
     monthlyIncomeCents: integer("monthly_income_cents"),
     monthlySavingsTargetCents: integer("monthly_savings_target_cents"),
+    // Slice 8: cashflow simulator's "danger zone" floor. Any day projected to
+    // drop below this triggers a cashflow risk alert. Defaults to $200 — a
+    // small but concrete buffer so the user sees risk before hitting zero.
+    cashflowBufferCents: integer("cashflow_buffer_cents").notNull().default(20000),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -469,6 +473,60 @@ export const dailyBriefings = pgTable(
   ],
 ).enableRLS();
 
+// Slice 8: account-level snapshots. One row per Basiq account. Latest balance
+// only — we don't keep a history (that's a v2 concern). The cashflow simulator
+// reads the current balance as its starting point for the forward projection.
+//
+// account_class.type is what Basiq returns ('transaction', 'savings', 'credit-
+// card', 'loan', etc). The cashflow forecast sums `transaction` accounts only —
+// savings shouldn't be drawn for daily flow, and credit cards are negative
+// balances that increase as you spend (different math, deferred to v2).
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    basiqAccountId: text("basiq_account_id").notNull(),
+    basiqUserId: text("basiq_user_id").notNull(),
+    institutionName: text("institution_name"),
+    accountName: text("account_name"),
+    accountNumber: text("account_number"),
+    accountType: text("account_type"),
+    accountClass: text("account_class"),
+    currentBalanceCents: integer("current_balance_cents"),
+    availableBalanceCents: integer("available_balance_cents"),
+    currency: text("currency").notNull().default("AUD"),
+    status: text("status").notNull().default("active"),
+    balanceAsOf: timestamp("balance_as_of", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("accounts_user_basiq_uniq").on(t.userId, t.basiqAccountId),
+    pgPolicy("accounts_select_own", {
+      for: "select",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("accounts_insert_own", {
+      for: "insert",
+      to: "authenticated",
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("accounts_update_own", {
+      for: "update",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("accounts_delete_own", {
+      for: "delete",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+  ],
+).enableRLS();
+
 export type Budget = typeof budgets.$inferSelect;
 export type NewBudget = typeof budgets.$inferInsert;
 export type Transaction = typeof transactions.$inferSelect;
@@ -487,3 +545,5 @@ export type ChatMessage = typeof chatMessages.$inferSelect;
 export type NewChatMessage = typeof chatMessages.$inferInsert;
 export type DailyBriefing = typeof dailyBriefings.$inferSelect;
 export type NewDailyBriefing = typeof dailyBriefings.$inferInsert;
+export type Account = typeof accounts.$inferSelect;
+export type NewAccount = typeof accounts.$inferInsert;

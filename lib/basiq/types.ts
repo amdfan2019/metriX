@@ -44,8 +44,24 @@ export interface BasiqAccount {
   accountNo?: string;
   name?: string;
   currency?: string;
+  /** Current ledger balance as a decimal string. Negative for credit cards in debt. */
   balance?: string;
+  /** Funds the user can actually spend (current minus pending or holds). */
+  availableFunds?: string;
+  /** ISO timestamp when Basiq last refreshed this account from the bank. */
+  lastUpdated?: string;
+  /** Account status — typically 'available' / 'unavailable'. */
+  status?: string;
+  /**
+   * class.type tells us how to treat the account in the cashflow forecast:
+   *   'transaction' — everyday spending; counts toward "spendable balance"
+   *   'savings'     — excluded from forecast (shouldn't be drawn for daily flow)
+   *   'credit-card' — excluded from forecast (negative balance, deferred to v2)
+   *   'mortgage' / 'loan' / 'investment' — excluded
+   */
   class?: { type?: string; product?: string };
+  institution?: string;
+  connection?: string;
 }
 
 export interface BasiqTransaction {

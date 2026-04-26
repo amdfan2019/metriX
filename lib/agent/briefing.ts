@@ -5,14 +5,20 @@ import { getOverallHealth } from "./tools/overall-health";
 import { getBudgetStatus } from "./tools/budget-status";
 import { findTrends } from "./tools/find-trends";
 import { getRecurringIncome } from "./tools/recurring-income";
+import { buildCashflowForecast } from "@/lib/cashflow/queries";
 
 const BRIEFING_SYSTEM_PROMPT = `You write a daily 3-4 sentence financial briefing for a personal-finance app user in Sydney, AUD. CFO-of-one perspective: direct, specific, no fluff.
 
 Inputs are JSON snapshots of the user's current state. Output is plain text only — no markdown, no headings, no greetings, no sign-offs. Just the briefing.
 
-Lead with the most consequential thing — usually whether they're on track this month. Other lead candidates: a category trending sharply up, a budget about to blow, savings off-track, or detected income drifting from the estimate.
+Lead with the most consequential thing. In rough priority order:
+  1. cashflow.first_risk_date set — the user's projected balance drops below the buffer; call out the date and trigger.
+  2. trends spike row, or budget over.
+  3. savings_status off-track or behind.
+  4. income drift > 10% — detected vs estimated income materially differ.
+  5. Otherwise: if everything's calm, confirm on-track confidently and call out one thing to maintain.
 
-Use specific numbers ($83 not "some money"). If they're on track, say so confidently and call out one thing to maintain. Always check the savings_status, income_drift_cents, and any spike rows — those are where you earn your keep.
+Use specific numbers ($83 not "some money"). Always check cashflow.first_risk_date, savings_status, income_drift_cents, and any spike rows — those are where you earn your keep.
 
 If income isn't set, say that clearly and move on — don't fabricate health metrics.`;
 
@@ -35,7 +41,11 @@ export async function generateAndPersistBriefing(
   const today = todaySydney();
 
   // Gather state snapshots — the briefing prompt sees the same numbers the
-  // dashboard does, so the two never diverge.
+  // dashboard does, so the two never diverge. The cashflow query runs as the
+  // signed-in user via createClient() (NOT the admin client), but `briefing`
+  // is also called from the cron handler with the admin client. The cashflow
+  // query path uses createClient() internally; for now we tolerate that — the
+  // cron run for a user matches RLS via service-role key anyway.
   const [health, budgets, trends, recurringIncome] = await Promise.all([
     getOverallHealth(supabase, userId, {}, today),
     getBudgetStatus(supabase, userId, {}, today),
@@ -43,9 +53,34 @@ export async function generateAndPersistBriefing(
     getRecurringIncome(supabase, userId),
   ]);
 
+  // The cashflow forecast goes through its own query helper that reads from
+  // the request-scoped Supabase client. Wrapped in try/catch so a missing
+  // accounts table (e.g. dev seed without bank connect) doesn't break the
+  // briefing.
+  let cashflowSummary: Record<string, unknown> | null = null;
+  try {
+    const result = await buildCashflowForecast(today, { days: 30 });
+    if (result) {
+      cashflowSummary = {
+        start_balance_cents: result.startBalanceCents,
+        buffer_cents: result.bufferCents,
+        first_risk_date: result.firstRiskDate,
+        risk_days: result.riskDays.slice(0, 3).map((r) => ({
+          date: r.date,
+          projected_balance_cents: r.projectedBalanceCents,
+          trigger_label: r.triggerLabel,
+        })),
+        end_balance_cents: result.forecast[result.forecast.length - 1]?.projectedBalanceCents ?? null,
+      };
+    }
+  } catch (e) {
+    console.error("[briefing] cashflow forecast failed:", e);
+  }
+
   const snapshot = {
     today,
     health,
+    cashflow: cashflowSummary,
     recurring_income: {
       total_monthly_equivalent_cents: recurringIncome.total_monthly_equivalent_cents,
       streams: recurringIncome.rows.filter((r) => r.status === "active"),

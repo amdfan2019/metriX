@@ -120,4 +120,29 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
       },
     },
   },
+  {
+    name: "get_balances",
+    description:
+      "Current and available balance per connected account, plus a 'spendable balance' rollup that excludes savings, credit cards, and loan accounts. Use when the user asks 'how much do I have?' or you need a balance to ground a cashflow answer.",
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: "get_cashflow_forecast",
+    description:
+      "Projects the user's spendable balance forward day-by-day from current balance, active recurring inflows/outflows, and recent variable spend. Returns risk days where the projection drops below the configured cashflow buffer (default $200), with the trigger event for each. Use for 'will I run out of money on the 12th?' and proactive risk-flagging in the briefing.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        days: {
+          type: Type.NUMBER,
+          description: "Days ahead to project. Default 60, max 120.",
+        },
+        return_events: {
+          type: Type.BOOLEAN,
+          description:
+            "When true, each day in the balance series carries the events that hit it (paychecks, bills, etc). Default false — saves tokens.",
+        },
+      },
+    },
+  },
 ];
