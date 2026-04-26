@@ -18,7 +18,6 @@ const CATEGORY_LABELS: Record<Category, string> = {
   entertainment: "Entertainment",
   shopping: "Shopping",
   health: "Health",
-  subscriptions: "Subscriptions",
   income: "Income",
   transfer: "Transfer",
   other: "Other",

@@ -15,10 +15,9 @@ const DEFAULT_SPLIT: Partial<Record<Category, number>> = {
   utilities: 0.07,
   transport: 0.10,
   dining: 0.10,
-  entertainment: 0.05,
+  entertainment: 0.07, // includes streaming subscriptions (Netflix, Spotify, etc)
   shopping: 0.08,
-  health: 0.04,
-  subscriptions: 0.03,
+  health: 0.05, // includes gym memberships (Goodlife, F45, etc)
   other: 0.02,
 };
 
@@ -30,10 +29,9 @@ const DEFAULT_SPLIT: Partial<Record<Category, number>> = {
  */
 const CATEGORY_CAP_CENTS: Partial<Record<Category, number>> = {
   utilities: 40000, // $400/mo
-  subscriptions: 20000, // $200/mo
-  health: 40000, // $400/mo (medical/dental — non-recurring averages)
+  health: 40000, // $400/mo (medical/dental — non-recurring averages, plus gym)
   transport: 60000, // $600/mo
-  entertainment: 50000, // $500/mo
+  entertainment: 50000, // $500/mo (includes streaming)
   groceries: 150000, // $1500/mo (very generous)
   dining: 150000, // $1500/mo
   shopping: 150000, // $1500/mo

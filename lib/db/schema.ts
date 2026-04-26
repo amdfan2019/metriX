@@ -19,9 +19,14 @@ import {
 // foreign key — Supabase owns the auth schema, and RLS policies (below) provide
 // the actual isolation. This matches Supabase's recommended pattern.
 
-// Fixed v1 category set. Adding new values requires a migration; we treat this as a slow-changing axis.
-// `housing` covers rent, mortgage interest, mortgage repayments, strata, body
-// corporate — the whole shelter cost bucket.
+// Fixed v1 category set. Adding new values requires a migration; we treat this
+// as a slow-changing axis.
+//
+// Categories are SUBSTANCE buckets. "Subscriptions" deliberately isn't here:
+// recurring billing is a behaviour, not a category — a gym subscription is
+// health, a streaming subscription is entertainment, cloud storage is other.
+// The `recurring_expenses` table + /subscriptions page handle the behavioural
+// grouping orthogonally.
 export const CATEGORY_VALUES = [
   "groceries",
   "dining",
@@ -31,7 +36,6 @@ export const CATEGORY_VALUES = [
   "entertainment",
   "shopping",
   "health",
-  "subscriptions",
   "income",
   "transfer",
   "other",

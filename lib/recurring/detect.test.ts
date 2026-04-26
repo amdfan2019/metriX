@@ -4,7 +4,7 @@ import { detectRecurringSeries, type DetectInput } from "./detect";
 const t = (overrides: Partial<DetectInput>): DetectInput => ({
   id: "t1",
   merchantName: "NETFLIX.COM",
-  category: "subscriptions",
+  category: "entertainment",
   amountCents: -2399,
   transactionDate: "2026-04-01",
   isTransfer: false,

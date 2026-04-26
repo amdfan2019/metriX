@@ -26,8 +26,10 @@ describe("suggestBudgets", () => {
     expect(byCategory.groceries).toBe(82500);
     // Utilities ratio 7% of $5500 = $385 → $385 — under the $400 cap.
     expect(byCategory.utilities).toBe(38500);
-    // Subscriptions 3% of $5500 = $165 → $165 — under the $200 cap.
-    expect(byCategory.subscriptions).toBe(16500);
+    // Entertainment ratio 7% of $5500 = $385 (covers streaming subscriptions).
+    expect(byCategory.entertainment).toBe(38500);
+    // Health ratio 5% of $5500 = $275 (covers gym memberships).
+    expect(byCategory.health).toBe(27500);
   });
 
   it("caps utilities at $400/mo for high-income users and pushes the residue to 'other'", () => {

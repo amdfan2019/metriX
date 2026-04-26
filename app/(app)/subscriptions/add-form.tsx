@@ -18,7 +18,6 @@ const CATEGORY_LABELS: Record<Category, string> = {
   entertainment: "Entertainment",
   shopping: "Shopping",
   health: "Health",
-  subscriptions: "Subscriptions",
   income: "Income",
   transfer: "Transfer",
   other: "Other",
@@ -80,14 +79,18 @@ export function AddSubscriptionForm() {
 
       <div className="space-y-1">
         <Label htmlFor="add-category" className="text-xs">
-          Category
+          Category — pick by substance (gym → Health, streaming → Entertainment, cloud storage → Other)
         </Label>
         <select
           id="add-category"
           name="category"
-          defaultValue="subscriptions"
+          defaultValue=""
+          required
           className="h-9 w-full rounded-md border bg-background px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
+          <option value="" disabled>
+            Select a category…
+          </option>
           {CATEGORY_VALUES.filter((c) => c !== "transfer" && c !== "income").map((c) => (
             <option key={c} value={c}>
               {CATEGORY_LABELS[c]}

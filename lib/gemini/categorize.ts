@@ -41,24 +41,25 @@ The user is in Sydney; AUD only; merchants are Australian unless very obviously 
 
 For each input transaction, return:
 - merchant_name: a clean canonical name. Examples: "WOOLWORTHS NEWTOWN" -> "Woolworths"; "TOBYS ESTATE COFFEE 2034" -> "Toby's Estate"; "UBER TRIP HELP.UBER.COM" -> "Uber".
-- category: one of groceries, dining, rent, utilities, transport, entertainment, shopping, health, subscriptions, income, transfer, other.
+- category: one of groceries, dining, housing, utilities, transport, entertainment, shopping, health, income, transfer, other.
 - confidence: 0..1. Use ≥0.9 for clear merchants like Woolworths/Coles. Use 0.5–0.7 when the description is cryptic or ambiguous. Below 0.5 if you're guessing.
+
+CATEGORISE BY SUBSTANCE, NOT BY BILLING PATTERN. A transaction's category is what the user is buying, not how often it bills. A monthly gym membership is health. A monthly streaming service is entertainment. There is NO "subscriptions" category — recurring billing is tracked separately on the recurring/subscriptions page; the budget category is the substance.
 
 Categorisation guidance:
 - groceries: supermarkets and grocers (Woolworths, Coles, Aldi, Harris Farm, IGA).
 - dining: cafes, restaurants, takeaway, food delivery (Uber Eats, DoorDash, Menulog).
 - housing: residential rent, mortgage interest charges, mortgage repayments, strata / body corporate fees, council rates. Anything that's a cost of having a place to live.
-- utilities: electricity (AGL, Origin, EnergyAustralia), gas, water (Sydney Water), internet, phone.
-- transport: Opal, Uber/DiDi/Ola, fuel (BP, Shell, 7-Eleven, Caltex), tolls (Linkt).
-- subscriptions: Netflix, Spotify, Apple, Google, AWS personal, gym memberships, news.
-- shopping: clothing, homeware, hardware (Bunnings, Officeworks, JB Hi-Fi).
-- health: pharmacies (Chemist Warehouse), doctors, gym fees that are health/medical.
-- entertainment: cinema, theatre, events, concerts.
-- income: payroll, refunds from employers, deposits labelled SALARY/PAY.
+- utilities: electricity (AGL, Origin, EnergyAustralia), gas, water (Sydney Water), internet, phone, mobile (Vodafone, Telstra, Optus).
+- transport: Opal, Uber/DiDi/Ola, fuel (BP, Shell, 7-Eleven, Caltex), tolls (Linkt), car loan repayments (Toyota Finance, etc).
+- entertainment: cinema, theatre, events, concerts. ALSO: streaming media subscriptions (Netflix, Disney+, Stan, Hulu, Paramount+, Binge, Spotify, Apple Music, YouTube Premium), news / magazine subscriptions (NYTimes, AFR, Australian, Atlantic).
+- shopping: clothing, homeware, hardware (Bunnings, Officeworks, JB Hi-Fi). Amazon Prime if predominantly used for shipping.
+- health: pharmacies (Chemist Warehouse), doctors, dentists, physio, AND gym / fitness memberships (Goodlife, Anytime Fitness, F45, yoga studios, Pilates studios, Strava Premium, MyFitnessPal Premium).
+- income: payroll, refunds from employers, deposits labelled SALARY/PAY, dividend / interest credits.
 - transfer: internal transfers between accounts; credit card payments. The pipeline already detects most transfers structurally — only assign here if the description clearly says transfer/payment.
-- other: when nothing else fits.
+- other: cloud storage / general digital tools that don't fit a substance category (Apple One, iCloud, Google One, Dropbox, OneDrive, Notion, GitHub, AWS personal, Adobe Creative Cloud, password managers, VPNs). Insurance (AAMI, NRMA) when it's not health-specific. Anything else genuinely uncategorised.
 
-Use ONLY the categories listed. Do not invent new ones. Do not use 'rent' — it has been replaced by 'housing'.`;
+Use ONLY the categories listed. Do not invent new ones. 'rent' and 'subscriptions' have been removed — use 'housing' and the appropriate substance category respectively.`;
 
 /**
  * Categorises a batch of transactions in one Gemini call. Returns one result

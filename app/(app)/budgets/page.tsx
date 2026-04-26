@@ -15,10 +15,9 @@ const STARTER_DEFAULTS_DOLLARS: Record<string, number> = {
   housing: 2500,
   utilities: 250,
   transport: 250,
-  entertainment: 200,
+  entertainment: 250,
   shopping: 300,
-  health: 150,
-  subscriptions: 80,
+  health: 200,
   other: 200,
 };
 

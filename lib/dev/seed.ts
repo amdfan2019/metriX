@@ -97,15 +97,17 @@ const PLAN: Plan[] = [
   { daysAgo: 14, category: "health", dollars: -75, description: "CHEMIST WAREHOUSE", merchant: "Chemist Warehouse" },
   { daysAgo: 38, category: "health", dollars: -160, description: "MEDICARE BULK BILL CLINIC", merchant: "Medicare" },
 
-  // --- Subscriptions (recurring monthly) ---
-  { daysAgo: 4, category: "subscriptions", dollars: -23.99, description: "NETFLIX.COM", merchant: "Netflix" },
-  { daysAgo: 34, category: "subscriptions", dollars: -23.99, description: "NETFLIX.COM", merchant: "Netflix" },
-  { daysAgo: 8, category: "subscriptions", dollars: -13.99, description: "SPOTIFY P0AB12", merchant: "Spotify" },
-  { daysAgo: 38, category: "subscriptions", dollars: -13.99, description: "SPOTIFY P0AB12", merchant: "Spotify" },
-  { daysAgo: 12, category: "subscriptions", dollars: -14.99, description: "APPLE.COM/BILL", merchant: "Apple" },
-  { daysAgo: 42, category: "subscriptions", dollars: -14.99, description: "APPLE.COM/BILL", merchant: "Apple" },
-  { daysAgo: 6, category: "subscriptions", dollars: -4.49, description: "GOOGLE STORAGE", merchant: "Google" },
-  { daysAgo: 36, category: "subscriptions", dollars: -4.49, description: "GOOGLE STORAGE", merchant: "Google" },
+  // --- Recurring (categorised by substance, not by billing pattern) ---
+  // Streaming media → entertainment.
+  { daysAgo: 4, category: "entertainment", dollars: -23.99, description: "NETFLIX.COM", merchant: "Netflix" },
+  { daysAgo: 34, category: "entertainment", dollars: -23.99, description: "NETFLIX.COM", merchant: "Netflix" },
+  { daysAgo: 8, category: "entertainment", dollars: -13.99, description: "SPOTIFY P0AB12", merchant: "Spotify" },
+  { daysAgo: 38, category: "entertainment", dollars: -13.99, description: "SPOTIFY P0AB12", merchant: "Spotify" },
+  // Cloud storage / digital tools → other.
+  { daysAgo: 12, category: "other", dollars: -14.99, description: "APPLE.COM/BILL", merchant: "Apple" },
+  { daysAgo: 42, category: "other", dollars: -14.99, description: "APPLE.COM/BILL", merchant: "Apple" },
+  { daysAgo: 6, category: "other", dollars: -4.49, description: "GOOGLE STORAGE", merchant: "Google" },
+  { daysAgo: 36, category: "other", dollars: -4.49, description: "GOOGLE STORAGE", merchant: "Google" },
 
   // --- Utilities ---
   { daysAgo: 18, category: "utilities", dollars: -180, description: "AGL SALES PTY LTD", merchant: "AGL" },

@@ -57,6 +57,13 @@
       "when": 1777214529083,
       "tag": "0007_misty_zuras",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777215245684,
+      "tag": "0008_bored_midnight",
+      "breakpoints": true
     }
   ]
 }
