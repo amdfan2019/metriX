@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { fetchUserBudgets, fetchCurrentMonthTransactions } from "@/lib/budgets/queries";
@@ -9,8 +10,12 @@ import {
   todaySydney,
   type BudgetStatus,
 } from "@/lib/budgets/calc";
-import { fetchMonthlyIncomeCents } from "@/lib/budgets/income";
-import { computeOverallHealth, type OverallStatus } from "@/lib/budgets/overall";
+import { fetchUserBudgetSettings } from "@/lib/budgets/income";
+import {
+  computeOverallHealth,
+  type OverallStatus,
+  type SavingsStatus,
+} from "@/lib/budgets/overall";
 import { expectedRemainingThisMonthByCategory } from "@/lib/recurring/queries";
 import { fetchTodayBriefing } from "@/lib/agent/briefing";
 import type { Category } from "@/lib/db/schema";
@@ -61,17 +66,29 @@ export default async function DashboardPage() {
   const greeting = user?.email?.split("@")[0] ?? "there";
 
   const today = todaySydney();
+  const settingsForRedirect = await fetchUserBudgetSettings();
+  // First-time users land on /dashboard from auth callback; bounce to the
+  // wizard if they haven't told us their income yet. Existing users with
+  // income set never see this redirect.
+  if (
+    settingsForRedirect.monthlyIncomeCents == null ||
+    settingsForRedirect.monthlyIncomeCents <= 0
+  ) {
+    redirect("/onboarding");
+  }
+
   const briefing = user ? await fetchTodayBriefing(supabase, user.id) : null;
-  const [budgets, txns, monthlyIncomeCents, committedRemaining] = await Promise.all([
+  const [budgets, txns, committedRemaining] = await Promise.all([
     fetchUserBudgets(),
     fetchCurrentMonthTransactions(today),
-    fetchMonthlyIncomeCents(),
     expectedRemainingThisMonthByCategory(today),
   ]);
+  const settings = settingsForRedirect;
 
   const spend = currentMonthSpend(txns, today);
   const overall = computeOverallHealth({
-    monthlyIncomeCents,
+    monthlyIncomeCents: settings.monthlyIncomeCents,
+    monthlySavingsTargetCents: settings.monthlySavingsTargetCents,
     monthTransactions: txns,
     committedRemaining,
     todayISO: today,
@@ -120,6 +137,9 @@ export default async function DashboardPage() {
         flexibleRemainingCents={overall.flexibleRemainingCents}
         daysRemaining={overall.daysRemaining}
         perDayCents={overall.perDayCents}
+        monthlySavingsTargetCents={overall.monthlySavingsTargetCents}
+        savingsProgressCents={overall.savingsProgressCents}
+        savingsStatus={overall.savingsStatus}
       />
 
       {alerts.length > 0 && (
@@ -246,6 +266,20 @@ const STATUS_BADGE_CLASS: Record<OverallStatus, string> = {
   "income-unset": "bg-muted text-muted-foreground border-border",
 };
 
+const SAVINGS_LABEL: Record<SavingsStatus, string> = {
+  "on-track": "Savings on track",
+  behind: "Savings behind",
+  "off-track": "Savings off track",
+  unset: "",
+};
+
+const SAVINGS_BADGE_CLASS: Record<SavingsStatus, string> = {
+  "on-track": "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30",
+  behind: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/30",
+  "off-track": "bg-destructive/15 text-destructive border-destructive/30",
+  unset: "",
+};
+
 function OnTrackCard({
   status,
   spentCents,
@@ -254,6 +288,9 @@ function OnTrackCard({
   flexibleRemainingCents,
   daysRemaining,
   perDayCents,
+  monthlySavingsTargetCents,
+  savingsProgressCents,
+  savingsStatus,
 }: {
   status: OverallStatus;
   spentCents: number;
@@ -262,7 +299,13 @@ function OnTrackCard({
   flexibleRemainingCents: number;
   daysRemaining: number;
   perDayCents: number;
+  monthlySavingsTargetCents: number | null;
+  savingsProgressCents: number | null;
+  savingsStatus: SavingsStatus;
 }) {
+  // The dashboard redirects to /onboarding when income is unset, so this
+  // branch only fires in odd corner cases (e.g. someone manually sets income
+  // to zero on Settings).
   if (status === "income-unset") {
     return (
       <Card>
@@ -292,14 +335,30 @@ function OnTrackCard({
         ? "bg-yellow-500"
         : "bg-green-500";
 
+  const showSavings = monthlySavingsTargetCents != null && monthlySavingsTargetCents > 0;
+  const savingsPct =
+    showSavings && savingsProgressCents != null && monthlySavingsTargetCents > 0
+      ? Math.min(100, Math.round((savingsProgressCents / monthlySavingsTargetCents) * 100))
+      : 0;
+
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base">This month</CardTitle>
-          <Badge variant="outline" className={cn("text-xs", STATUS_BADGE_CLASS[status])}>
-            {STATUS_LABEL[status]}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className={cn("text-xs", STATUS_BADGE_CLASS[status])}>
+              {STATUS_LABEL[status]}
+            </Badge>
+            {showSavings && savingsStatus !== "unset" && (
+              <Badge
+                variant="outline"
+                className={cn("text-xs", SAVINGS_BADGE_CLASS[savingsStatus])}
+              >
+                {SAVINGS_LABEL[savingsStatus]}
+              </Badge>
+            )}
+          </div>
         </div>
         <CardDescription>
           {flexibleRemainingCents >= 0
@@ -307,19 +366,47 @@ function OnTrackCard({
             : `${fmt(Math.abs(flexibleRemainingCents))} over income${committedCents > 0 ? " (counting upcoming recurring)" : ""}`}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className={cn("h-full transition-all", barClass)}
-            style={{ width: `${pct}%` }}
-            aria-hidden
-          />
+      <CardContent className="space-y-3">
+        <div className="space-y-1">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn("h-full transition-all", barClass)}
+              style={{ width: `${pct}%` }}
+              aria-hidden
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {fmt(spentCents)} spent
+            {committedCents > 0 && ` · ${fmt(committedCents)} upcoming recurring`}
+            {monthlyIncomeCents != null && ` · of ${fmt(monthlyIncomeCents)} income`}
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {fmt(spentCents)} spent
-          {committedCents > 0 && ` · ${fmt(committedCents)} upcoming recurring`}
-          {monthlyIncomeCents != null && ` · of ${fmt(monthlyIncomeCents)} income`}
-        </p>
+        {showSavings && monthlySavingsTargetCents && (
+          <div className="space-y-1 rounded-md border border-dashed bg-muted/30 px-3 py-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                Savings progress
+              </span>
+              <span className="tabular-nums">
+                {fmt(savingsProgressCents ?? 0)} of {fmt(monthlySavingsTargetCents)}
+              </span>
+            </div>
+            <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn(
+                  "h-full transition-all",
+                  savingsStatus === "on-track"
+                    ? "bg-green-500"
+                    : savingsStatus === "behind"
+                      ? "bg-yellow-500"
+                      : "bg-destructive",
+                )}
+                style={{ width: `${savingsPct}%` }}
+                aria-hidden
+              />
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

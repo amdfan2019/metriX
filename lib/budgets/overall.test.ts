@@ -109,4 +109,66 @@ describe("computeOverallHealth", () => {
       }).status,
     ).toBe("income-unset");
   });
+
+  describe("savings target", () => {
+    it("reports savings 'unset' when no target is set", () => {
+      const h = computeOverallHealth({
+        monthlyIncomeCents: 500000,
+        monthTransactions: [],
+        committedRemaining: {},
+        todayISO: "2026-04-15",
+      });
+      expect(h.savingsStatus).toBe("unset");
+      expect(h.savingsProgressCents).toBeNull();
+    });
+
+    it("savings on-track when flexible remaining ≥ target", () => {
+      const h = computeOverallHealth({
+        monthlyIncomeCents: 500000,
+        monthlySavingsTargetCents: 100000, // $1000 target
+        monthTransactions: [t({ amountCents: -50000 })],
+        committedRemaining: {},
+        todayISO: "2026-04-15",
+      });
+      // flex remaining = 500k - 50k = 450k > 100k target → on-track, progress capped at 100k
+      expect(h.savingsStatus).toBe("on-track");
+      expect(h.savingsProgressCents).toBe(100000);
+    });
+
+    it("savings behind when flexible remaining is 50-99% of target", () => {
+      const h = computeOverallHealth({
+        monthlyIncomeCents: 500000,
+        monthlySavingsTargetCents: 100000,
+        monthTransactions: [t({ amountCents: -430000 })], // leaves $700 flex
+        committedRemaining: {},
+        todayISO: "2026-04-15",
+      });
+      expect(h.savingsStatus).toBe("behind");
+      expect(h.savingsProgressCents).toBe(70000);
+    });
+
+    it("savings off-track when flexible remaining < 50% of target", () => {
+      const h = computeOverallHealth({
+        monthlyIncomeCents: 500000,
+        monthlySavingsTargetCents: 100000,
+        monthTransactions: [t({ amountCents: -480000 })], // leaves $200 flex
+        committedRemaining: {},
+        todayISO: "2026-04-15",
+      });
+      expect(h.savingsStatus).toBe("off-track");
+      expect(h.savingsProgressCents).toBe(20000);
+    });
+
+    it("treats zero or negative target as unset", () => {
+      expect(
+        computeOverallHealth({
+          monthlyIncomeCents: 500000,
+          monthlySavingsTargetCents: 0,
+          monthTransactions: [],
+          committedRemaining: {},
+          todayISO: "2026-04-15",
+        }).savingsStatus,
+      ).toBe("unset");
+    });
+  });
 });

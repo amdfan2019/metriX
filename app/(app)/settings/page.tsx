@@ -1,7 +1,7 @@
 import { CheckCircle2, RefreshCw, TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { fetchUserConnections } from "@/lib/basiq/queries";
-import { fetchMonthlyIncomeCents } from "@/lib/budgets/income";
+import { fetchUserBudgetSettings } from "@/lib/budgets/income";
 import { startBankConnection, manualSync, pullFromBasiq } from "./actions";
 import { MobileForm } from "./mobile-form";
 import { IncomeForm } from "./income-form";
@@ -29,12 +29,17 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const [connections, incomeCents] = await Promise.all([
+  const [connections, settings] = await Promise.all([
     fetchUserConnections(),
-    fetchMonthlyIncomeCents(),
+    fetchUserBudgetSettings(),
   ]);
   const userMobile = (user?.user_metadata?.mobile as string | undefined) ?? null;
-  const incomeDollars = incomeCents != null ? Math.round(incomeCents / 100) : null;
+  const incomeDollars =
+    settings.monthlyIncomeCents != null ? Math.round(settings.monthlyIncomeCents / 100) : null;
+  const savingsDollars =
+    settings.monthlySavingsTargetCents != null
+      ? Math.round(settings.monthlySavingsTargetCents / 100)
+      : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-8 space-y-6">
@@ -79,13 +84,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
           </div>
           <MobileForm defaultValue={userMobile} />
           <div className="space-y-1 pt-2">
-            <p className="text-sm font-medium">Monthly income</p>
+            <p className="text-sm font-medium">Monthly income & savings target</p>
             <p className="text-xs text-muted-foreground">
-              After-tax monthly take-home. Drives the on-track view and the AI agent&apos;s
-              affordability checks.
+              After-tax monthly take-home plus how much you want to set aside each month. Drives the
+              on-track view, the suggested budgets, and the AI agent&apos;s affordability checks.
             </p>
           </div>
-          <IncomeForm defaultDollars={incomeDollars} />
+          <IncomeForm defaultIncomeDollars={incomeDollars} defaultSavingsDollars={savingsDollars} />
         </CardContent>
       </Card>
 

@@ -79,6 +79,7 @@ export async function canIAfford(
     .from("recurring_expenses")
     .select("category, typical_amount_cents, next_expected_date")
     .eq("user_id", userId)
+    .eq("direction", "expense")
     .eq("status", "active")
     .eq("ignored", false)
     .eq("category", category)

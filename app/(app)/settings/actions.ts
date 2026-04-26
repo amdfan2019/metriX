@@ -7,22 +7,31 @@ import { basiq } from "@/lib/basiq/client";
 import { syncTransactionsForUser } from "@/lib/basiq/sync";
 
 export type SaveMobileState = { ok: true } | { error: string } | undefined;
-export type SaveIncomeState = { ok: true } | { error: string } | undefined;
+export type SaveBudgetSettingsState = { ok: true } | { error: string } | undefined;
 
 /**
- * Stores monthly income in user_settings. Drives the on-track widget on the
- * dashboard and the agent's `get_overall_health` tool.
+ * Stores monthly income + savings target in user_settings. Both fields go in
+ * one upsert so the suggested-budget engine sees the new state in a single
+ * revalidation cycle.
  */
-export async function saveMonthlyIncome(
-  _prev: SaveIncomeState,
+export async function saveBudgetSettings(
+  _prev: SaveBudgetSettingsState,
   formData: FormData,
-): Promise<SaveIncomeState> {
-  const raw = String(formData.get("incomeDollars") ?? "").trim();
-  const amount = Number(raw);
-  if (!Number.isFinite(amount) || amount < 0) {
-    return { error: "Income must be a positive number." };
+): Promise<SaveBudgetSettingsState> {
+  const incomeRaw = String(formData.get("incomeDollars") ?? "").trim();
+  const savingsRaw = String(formData.get("savingsDollars") ?? "").trim();
+
+  const income = Number(incomeRaw);
+  if (!Number.isFinite(income) || income < 0) {
+    return { error: "Income must be a non-negative number." };
   }
-  const cents = Math.round(amount * 100);
+  const savings = savingsRaw === "" ? 0 : Number(savingsRaw);
+  if (!Number.isFinite(savings) || savings < 0) {
+    return { error: "Savings target must be a non-negative number." };
+  }
+  if (savings > income) {
+    return { error: "Savings target can't exceed income." };
+  }
 
   const supabase = await createClient();
   const {
@@ -32,11 +41,19 @@ export async function saveMonthlyIncome(
 
   const { error } = await supabase
     .from("user_settings")
-    .upsert({ user_id: user.id, monthly_income_cents: cents }, { onConflict: "user_id" });
+    .upsert(
+      {
+        user_id: user.id,
+        monthly_income_cents: Math.round(income * 100),
+        monthly_savings_target_cents: Math.round(savings * 100),
+      },
+      { onConflict: "user_id" },
+    );
   if (error) return { error: error.message };
 
   revalidatePath("/settings");
   revalidatePath("/dashboard");
+  revalidatePath("/budgets");
   return { ok: true };
 }
 

@@ -14,7 +14,13 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: "get_overall_health",
     description:
-      "Whether the user is on track for the month overall. Returns income vs. spent vs. upcoming-recurring with status (on-track / tight / over / income-unset). Use this for 'how am I doing?' questions and to ground other answers in current state.",
+      "Whether the user is on track for the month overall. Returns estimated vs detected income, savings target/progress, spent + upcoming-recurring + flexible-remaining with status (on-track / tight / over / income-unset). Use this for 'how am I doing?' / 'am I saving enough?' / 'is my income on track?' questions and to ground other answers in current state.",
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: "get_recurring_income",
+    description:
+      "List the user's detected recurring income streams (paychecks, regular freelance, etc) plus monthly-equivalent rollup. Use when reasoning about income stability, recent shifts, or comparing detected income against the user-entered estimate.",
     parameters: { type: Type.OBJECT, properties: {} },
   },
   {

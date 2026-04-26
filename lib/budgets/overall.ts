@@ -6,6 +6,8 @@ const NON_OUTFLOW_CATEGORIES = new Set<Category>(["income", "transfer"]);
 
 export interface OverallHealthInput {
   monthlyIncomeCents: number | null;
+  /** Optional savings goal — when set, drives savings status alongside flexible-remaining. */
+  monthlySavingsTargetCents?: number | null;
   /** Transactions for the calendar month containing todayISO, up to and including todayISO. */
   monthTransactions: CalcTransaction[];
   /** Active recurring expenses whose next_expected_date is today < d <= end-of-month, summed by category. */
@@ -14,6 +16,7 @@ export interface OverallHealthInput {
 }
 
 export type OverallStatus = "on-track" | "tight" | "over" | "income-unset";
+export type SavingsStatus = "on-track" | "behind" | "off-track" | "unset";
 
 export interface OverallHealth {
   status: OverallStatus;
@@ -23,12 +26,21 @@ export interface OverallHealth {
   committedCents: number;
   /** monthly income, mirrored for convenience. null if unset. */
   monthlyIncomeCents: number | null;
+  /** monthly savings target, null if unset. */
+  monthlySavingsTargetCents: number | null;
   /** income − spent − committed. negative means projected over income. */
   flexibleRemainingCents: number;
   /** Days from today (inclusive) to month-end (inclusive). */
   daysRemaining: number;
   /** Per-day flexible remaining over remaining days. 0 when no income set. */
   perDayCents: number;
+  /**
+   * Progress toward the savings target = `flexibleRemainingCents` capped to
+   * the target. If target is unset, this is null.
+   */
+  savingsProgressCents: number | null;
+  /** Status of savings goal: 'unset' / 'on-track' / 'behind' / 'off-track'. */
+  savingsStatus: SavingsStatus;
 }
 
 /**
@@ -45,6 +57,7 @@ export function computeOverallHealth(input: OverallHealthInput): OverallHealth {
   const spentCents = sumOutflows(input.monthTransactions, input.todayISO);
   const committedCents = sumCategorySpend(input.committedRemaining);
   const daysRemaining = daysToEndOfMonth(input.todayISO);
+  const savingsTarget = input.monthlySavingsTargetCents ?? null;
 
   if (input.monthlyIncomeCents == null || input.monthlyIncomeCents <= 0) {
     return {
@@ -52,9 +65,12 @@ export function computeOverallHealth(input: OverallHealthInput): OverallHealth {
       spentCents,
       committedCents,
       monthlyIncomeCents: input.monthlyIncomeCents,
+      monthlySavingsTargetCents: savingsTarget,
       flexibleRemainingCents: 0,
       daysRemaining,
       perDayCents: 0,
+      savingsProgressCents: null,
+      savingsStatus: savingsTarget != null ? "off-track" : "unset",
     };
   }
 
@@ -66,14 +82,32 @@ export function computeOverallHealth(input: OverallHealthInput): OverallHealth {
   else if (flexibleRemaining < income * 0.15) status = "tight";
   else status = "on-track";
 
+  // Savings progress: amount left over IF the user trims to ≤ target. Capped
+  // at target (anything above is buffer / pre-savings flex).
+  let savingsProgressCents: number | null = null;
+  let savingsStatus: SavingsStatus = "unset";
+  if (savingsTarget != null && savingsTarget > 0) {
+    savingsProgressCents = Math.max(0, Math.min(savingsTarget, flexibleRemaining));
+    if (flexibleRemaining >= savingsTarget) {
+      savingsStatus = "on-track";
+    } else if (flexibleRemaining >= savingsTarget * 0.5) {
+      savingsStatus = "behind";
+    } else {
+      savingsStatus = "off-track";
+    }
+  }
+
   return {
     status,
     spentCents,
     committedCents,
     monthlyIncomeCents: income,
+    monthlySavingsTargetCents: savingsTarget,
     flexibleRemainingCents: flexibleRemaining,
     daysRemaining,
     perDayCents: daysRemaining > 0 ? Math.round(flexibleRemaining / daysRemaining) : 0,
+    savingsProgressCents,
+    savingsStatus,
   };
 }
 

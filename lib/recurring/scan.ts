@@ -1,7 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Cadence, Category } from "@/lib/db/schema";
 import { CADENCE_WINDOWS, addDays, daysBetween } from "./cadence";
-import { detectRecurringSeries, type DetectedSeries, type DetectInput } from "./detect";
+import {
+  detectRecurringSeries,
+  type DetectedSeries,
+  type DetectInput,
+  type Direction,
+} from "./detect";
 
 export interface ScanSummary {
   scanned: number;
@@ -47,7 +52,7 @@ export async function rescanRecurringForUser(
   // 1. Load existing recurring rows.
   const { data: existingRows, error: exErr } = await supabase
     .from("recurring_expenses")
-    .select("id, merchant_name, cadence, source, ignored, status, next_expected_date")
+    .select("id, merchant_name, cadence, direction, source, ignored, status, next_expected_date")
     .eq("user_id", userId);
   if (exErr) throw new Error(`recurring scan: existing fetch failed: ${exErr.message}`);
 
@@ -58,12 +63,13 @@ export async function rescanRecurringForUser(
       id: r.id as string,
       merchantName: r.merchant_name as string,
       cadence: r.cadence as Cadence,
+      direction: (r.direction as Direction) ?? "expense",
       source: r.source as "detected" | "manual",
       ignored: r.ignored as boolean,
       status: r.status as "active" | "inactive",
       nextExpectedDate: r.next_expected_date as string,
     };
-    existingByKey.set(`${row.merchantName}::${row.cadence}`, row);
+    existingByKey.set(seriesKey(row.merchantName, row.cadence, row.direction), row);
     existingById.set(row.id, row);
   }
 
@@ -114,14 +120,19 @@ export async function rescanRecurringForUser(
   }
   const detectorInput = candidates.filter((c) => !claimedByManual.has(c.id));
 
-  // 4. Detect series.
-  const detected = detectRecurringSeries(detectorInput);
+  // 4. Detect series — once for outflows (the original Slice 5 case), once
+  // for inflows (Slice 7: paycheck recurring detection). Same algorithm,
+  // different input filter.
+  const detected = [
+    ...detectRecurringSeries(detectorInput, { direction: "expense" }),
+    ...detectRecurringSeries(detectorInput, { direction: "income" }),
+  ];
   summary.detected = detected.length;
 
   // 5. Upsert detected series (preserving manual + ignored).
   const refreshedSeriesIds = new Set<string>();
   for (const s of detected) {
-    const key = `${s.merchantName}::${s.cadence}`;
+    const key = seriesKey(s.merchantName, s.cadence, s.direction);
     const existing = existingByKey.get(key);
 
     if (existing?.ignored) {
@@ -173,6 +184,7 @@ export async function rescanRecurringForUser(
           merchant_name: s.merchantName,
           category: s.category,
           cadence: s.cadence,
+          direction: s.direction,
           typical_amount_cents: s.typicalAmountCents,
           min_amount_cents: s.minAmountCents,
           max_amount_cents: s.maxAmountCents,
@@ -355,10 +367,15 @@ interface ExistingRow {
   id: string;
   merchantName: string;
   cadence: Cadence;
+  direction: Direction;
   source: "detected" | "manual";
   ignored: boolean;
   status: "active" | "inactive";
   nextExpectedDate: string;
+}
+
+function seriesKey(merchant: string, cadence: Cadence, direction: Direction): string {
+  return `${merchant}::${cadence}::${direction}`;
 }
 
 async function linkLegs(

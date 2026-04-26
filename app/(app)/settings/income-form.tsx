@@ -5,43 +5,63 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { saveMonthlyIncome, type SaveIncomeState } from "./actions";
+import { saveBudgetSettings, type SaveBudgetSettingsState } from "./actions";
 
 interface IncomeFormProps {
-  /** Current value in dollars (already converted from cents), or null if unset. */
-  defaultDollars: number | null;
+  /** Current values in dollars (already converted from cents), or null if unset. */
+  defaultIncomeDollars: number | null;
+  defaultSavingsDollars: number | null;
 }
 
-export function IncomeForm({ defaultDollars }: IncomeFormProps) {
-  const [state, action, pending] = useActionState<SaveIncomeState, FormData>(
-    saveMonthlyIncome,
+export function IncomeForm({ defaultIncomeDollars, defaultSavingsDollars }: IncomeFormProps) {
+  const [state, action, pending] = useActionState<SaveBudgetSettingsState, FormData>(
+    saveBudgetSettings,
     undefined,
   );
 
   useEffect(() => {
     if (!state) return;
-    if ("ok" in state) toast.success("Monthly income saved.");
+    if ("ok" in state) toast.success("Saved.");
     else if ("error" in state) toast.error(state.error);
   }, [state]);
 
+  // `key` forces a fresh uncontrolled form whenever the saved value changes —
+  // Base UI warns if defaultValue mutates on a live input.
+  const formKey = `${defaultIncomeDollars ?? "u"}-${defaultSavingsDollars ?? "u"}`;
+
   return (
-    <form action={action} className="flex items-end gap-2 max-w-sm">
-      <div className="flex-1 space-y-1">
+    <form
+      key={formKey}
+      action={action}
+      className="grid grid-cols-1 gap-3 max-w-md sm:grid-cols-[1fr_1fr_auto] sm:items-end"
+    >
+      <div className="space-y-1">
         <Label htmlFor="incomeDollars" className="text-xs">
-          Monthly income (AUD, after-tax)
+          Monthly income (AUD)
         </Label>
-        {/* `key` forces a fresh uncontrolled input whenever the saved value
-            changes — Base UI warns if defaultValue mutates on a live input. */}
         <Input
-          key={defaultDollars ?? "unset"}
           id="incomeDollars"
           name="incomeDollars"
           type="number"
           step="1"
           min="0"
           placeholder="6500"
-          defaultValue={defaultDollars != null ? String(defaultDollars) : ""}
+          defaultValue={defaultIncomeDollars != null ? String(defaultIncomeDollars) : ""}
           required
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="savingsDollars" className="text-xs">
+          Savings target (AUD)
+        </Label>
+        <Input
+          id="savingsDollars"
+          name="savingsDollars"
+          type="number"
+          step="1"
+          min="0"
+          placeholder="1000"
+          defaultValue={defaultSavingsDollars != null ? String(defaultSavingsDollars) : ""}
         />
       </div>
       <Button type="submit" size="sm" disabled={pending}>

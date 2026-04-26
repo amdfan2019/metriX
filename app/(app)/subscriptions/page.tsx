@@ -1,6 +1,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { fetchUserRecurring, type RecurringRow } from "@/lib/recurring/queries";
+import {
+  fetchUserRecurring,
+  fetchAdditionalIncome,
+  type RecurringRow,
+  type AdditionalIncomeRow,
+} from "@/lib/recurring/queries";
 import { CADENCE_LABEL, daysBetween } from "@/lib/recurring/cadence";
 import { todaySydney } from "@/lib/budgets/calc";
 import type { Category } from "@/lib/db/schema";
@@ -31,24 +36,37 @@ const aud = new Intl.NumberFormat("en-AU", {
 const fmt = (cents: number) => aud.format(cents / 100);
 
 export default async function SubscriptionsPage() {
-  const all = await fetchUserRecurring();
+  const [all, additionalIncome] = await Promise.all([
+    fetchUserRecurring(),
+    fetchAdditionalIncome(60),
+  ]);
   const today = todaySydney();
 
-  const active = all.filter((r) => r.status === "active" && !r.ignored);
-  const inactive = all.filter((r) => r.status === "inactive" && !r.ignored);
-  const ignored = all.filter((r) => r.ignored);
+  // Split by direction, then by status / ignored within each.
+  const expenses = all.filter((r) => r.direction === "expense");
+  const income = all.filter((r) => r.direction === "income");
 
-  const totalActiveMonthly = active.reduce((sum, r) => sum + monthlyEquivalentCents(r), 0);
+  const expActive = expenses.filter((r) => r.status === "active" && !r.ignored);
+  const expInactive = expenses.filter((r) => r.status === "inactive" && !r.ignored);
+  const expIgnored = expenses.filter((r) => r.ignored);
+
+  const incActive = income.filter((r) => r.status === "active" && !r.ignored);
+  const incInactive = income.filter((r) => r.status === "inactive" && !r.ignored);
+  const incIgnored = income.filter((r) => r.ignored);
+
+  const totalActiveExpenseMonthly = expActive.reduce((s, r) => s + monthlyEquivalentCents(r), 0);
+  const totalActiveIncomeMonthly = incActive.reduce((s, r) => s + monthlyEquivalentCents(r), 0);
+  const additional60dTotal = additionalIncome.reduce((s, r) => s + r.amountCents, 0);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-8 space-y-6">
+    <div className="mx-auto w-full max-w-5xl px-6 py-8 space-y-8">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Subscriptions & recurring</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Recurring</h1>
           <p className="text-sm text-muted-foreground">
-            {all.length === 0
-              ? "Detect or enter recurring charges so we can plan ahead."
-              : `${active.length} active · ${inactive.length} inactive · ${ignored.length} ignored · ${fmt(totalActiveMonthly)}/mo equivalent`}
+            {all.length === 0 && additionalIncome.length === 0
+              ? "Detect recurring streams or enter your own — once we know what comes in and out we can plan ahead."
+              : `${expActive.length} expense${expActive.length === 1 ? "" : "s"} · ${incActive.length} income · ${fmt(totalActiveExpenseMonthly)}/mo out · ${fmt(totalActiveIncomeMonthly)}/mo in`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -57,41 +75,108 @@ export default async function SubscriptionsPage() {
         </div>
       </header>
 
-      {active.length > 0 && (
-        <Section title="Active" description="We expect these to charge again.">
-          <SubscriptionList rows={active} todayISO={today} />
-        </Section>
-      )}
+      {/* INCOME --------------------------------------------------------- */}
+      <div className="space-y-4">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-base font-semibold">Regular income</h2>
+          {totalActiveIncomeMonthly > 0 && (
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {fmt(totalActiveIncomeMonthly)}/mo equivalent
+            </p>
+          )}
+        </div>
 
-      {inactive.length > 0 && (
-        <Section
-          title="Inactive"
-          description="We haven't seen one of these in over a cadence — possibly cancelled."
-        >
-          <SubscriptionList rows={inactive} todayISO={today} muted />
-        </Section>
-      )}
+        {incActive.length > 0 && (
+          <Section title="Active" description="We expect these to land again on schedule.">
+            <SubscriptionList rows={incActive} todayISO={today} />
+          </Section>
+        )}
 
-      {ignored.length > 0 && (
-        <Section
-          title="Ignored"
-          description="You marked these as not recurring. They're skipped from forecasts."
-        >
-          <SubscriptionList rows={ignored} todayISO={today} muted />
-        </Section>
-      )}
+        {incInactive.length > 0 && (
+          <Section
+            title="Inactive"
+            description="No recent matching deposit — possibly ended."
+          >
+            <SubscriptionList rows={incInactive} todayISO={today} muted />
+          </Section>
+        )}
 
-      {all.length === 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Nothing detected yet</CardTitle>
-            <CardDescription>
-              Once you have a few weeks of categorised transactions, click <strong>Rescan</strong> and
-              we&apos;ll find recurring charges automatically. Or add one manually with the button above.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      )}
+        {incIgnored.length > 0 && (
+          <Section title="Ignored" description="You marked these as not regular.">
+            <SubscriptionList rows={incIgnored} todayISO={today} muted />
+          </Section>
+        )}
+
+        {incActive.length === 0 && incInactive.length === 0 && incIgnored.length === 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">No recurring income detected yet</CardTitle>
+              <CardDescription>
+                Once we see your paycheck land twice (and they line up at a regular cadence) we&apos;ll
+                surface it here. Make sure paycheck transactions are categorised as Income.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+
+        {additionalIncome.length > 0 && (
+          <Section
+            title={`Additional income (last 60 days · ${fmt(additional60dTotal)})`}
+            description="One-off deposits — gifts, refunds, ad-hoc pay. Not part of any series."
+          >
+            <ul className="divide-y">
+              {additionalIncome.map((r) => (
+                <AdditionalIncomeListItem key={r.id} row={r} />
+              ))}
+            </ul>
+          </Section>
+        )}
+      </div>
+
+      {/* EXPENSES ------------------------------------------------------- */}
+      <div className="space-y-4">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-base font-semibold">Recurring expenses</h2>
+          {totalActiveExpenseMonthly > 0 && (
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {fmt(totalActiveExpenseMonthly)}/mo equivalent
+            </p>
+          )}
+        </div>
+
+        {expActive.length > 0 && (
+          <Section title="Active" description="We expect these to charge again.">
+            <SubscriptionList rows={expActive} todayISO={today} />
+          </Section>
+        )}
+
+        {expInactive.length > 0 && (
+          <Section
+            title="Inactive"
+            description="We haven't seen one of these in over a cadence — possibly cancelled."
+          >
+            <SubscriptionList rows={expInactive} todayISO={today} muted />
+          </Section>
+        )}
+
+        {expIgnored.length > 0 && (
+          <Section title="Ignored" description="You marked these as not recurring.">
+            <SubscriptionList rows={expIgnored} todayISO={today} muted />
+          </Section>
+        )}
+
+        {expenses.length === 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Nothing detected yet</CardTitle>
+              <CardDescription>
+                Once you have a few weeks of categorised transactions, click <strong>Rescan</strong> and
+                we&apos;ll find recurring charges automatically. Or add one manually with the button above.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
@@ -108,7 +193,7 @@ function Section({
   return (
     <section className="space-y-2">
       <div className="flex items-baseline gap-2">
-        <h2 className="text-sm font-medium text-muted-foreground">{title}</h2>
+        <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
         <span className="text-xs text-muted-foreground/70">{description}</span>
       </div>
       <Card>
@@ -138,9 +223,9 @@ function SubscriptionList({
 
 function SubscriptionRow({ row, todayISO }: { row: RecurringRow; todayISO: string }) {
   const variance = row.maxAmountCents - row.minAmountCents;
-  // Show the range only when amounts genuinely vary (>5% or >$1 absolute).
   const showRange = variance > Math.max(100, row.typicalAmountCents * 0.05);
   const overdue = daysOverdue(row.nextExpectedDate, todayISO);
+  const isIncome = row.direction === "income";
 
   return (
     <li className="flex items-start justify-between gap-3 px-4 py-3">
@@ -160,7 +245,9 @@ function SubscriptionRow({ row, todayISO }: { row: RecurringRow; todayISO: strin
           )}
         </div>
         <p className="text-sm tabular-nums">
-          {fmt(row.typicalAmountCents)}
+          <span className={isIncome ? "text-green-700 dark:text-green-500" : ""}>
+            {isIncome ? "+" : ""}{fmt(row.typicalAmountCents)}
+          </span>
           {showRange && (
             <span className="text-xs text-muted-foreground">
               {" "}
@@ -191,15 +278,28 @@ function SubscriptionRow({ row, todayISO }: { row: RecurringRow; todayISO: strin
   );
 }
 
+function AdditionalIncomeListItem({ row }: { row: AdditionalIncomeRow }) {
+  return (
+    <li className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+      <div className="min-w-0">
+        <p className="truncate font-medium">{row.merchantName ?? row.description}</p>
+        <p className="text-xs text-muted-foreground">{row.transactionDate}</p>
+      </div>
+      <p className="tabular-nums text-green-700 dark:text-green-500">
+        +{fmt(row.amountCents)}
+      </p>
+    </li>
+  );
+}
+
 function daysOverdue(nextExpected: string, todayISO: string): number {
   if (nextExpected >= todayISO) return 0;
   return daysBetween(nextExpected, todayISO);
 }
 
 /**
- * Express any cadence as a per-month equivalent so the page header can show
- * a single "you have $X/mo of recurring" number. Approximate; matches what a
- * user would intuitively expect (yearly /12, fortnightly *26/12, etc).
+ * Express any cadence as a per-month equivalent so headers can show a single
+ * "you have $X/mo of recurring" number. Approximate.
  */
 function monthlyEquivalentCents(r: RecurringRow): number {
   switch (r.cadence) {

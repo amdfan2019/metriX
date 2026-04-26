@@ -4,12 +4,15 @@ import { todaySydney } from "@/lib/budgets/calc";
 import { getOverallHealth } from "./tools/overall-health";
 import { getBudgetStatus } from "./tools/budget-status";
 import { findTrends } from "./tools/find-trends";
+import { getRecurringIncome } from "./tools/recurring-income";
 
 const BRIEFING_SYSTEM_PROMPT = `You write a daily 3-4 sentence financial briefing for a personal-finance app user in Sydney, AUD. CFO-of-one perspective: direct, specific, no fluff.
 
 Inputs are JSON snapshots of the user's current state. Output is plain text only — no markdown, no headings, no greetings, no sign-offs. Just the briefing.
 
-Lead with whether they're on track. Call out the most consequential thing first: a category trending sharply up, a budget that's about to blow, or whether they're comfortably ahead. Use specific numbers ($83 not "some money"). If they're on track, say so confidently and call out one thing to maintain.
+Lead with the most consequential thing — usually whether they're on track this month. Other lead candidates: a category trending sharply up, a budget about to blow, savings off-track, or detected income drifting from the estimate.
+
+Use specific numbers ($83 not "some money"). If they're on track, say so confidently and call out one thing to maintain. Always check the savings_status, income_drift_cents, and any spike rows — those are where you earn your keep.
 
 If income isn't set, say that clearly and move on — don't fabricate health metrics.`;
 
@@ -33,15 +36,20 @@ export async function generateAndPersistBriefing(
 
   // Gather state snapshots — the briefing prompt sees the same numbers the
   // dashboard does, so the two never diverge.
-  const [health, budgets, trends] = await Promise.all([
+  const [health, budgets, trends, recurringIncome] = await Promise.all([
     getOverallHealth(supabase, userId, {}, today),
     getBudgetStatus(supabase, userId, {}, today),
     findTrends(supabase, userId, { months: 3 }, today),
+    getRecurringIncome(supabase, userId),
   ]);
 
   const snapshot = {
     today,
     health,
+    recurring_income: {
+      total_monthly_equivalent_cents: recurringIncome.total_monthly_equivalent_cents,
+      streams: recurringIncome.rows.filter((r) => r.status === "active"),
+    },
     budgets: budgets.rows.map((r) => ({
       category: r.category,
       cap_cents: r.monthly_cap_cents,

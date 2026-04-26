@@ -239,6 +239,12 @@ export const recurringStatusEnum = pgEnum("recurring_status", ["active", "inacti
 // manual   = user added it themselves on the Subscriptions page.
 export const recurringSourceEnum = pgEnum("recurring_source", ["detected", "manual"]);
 
+// Slice 7: recurring streams flow either out (subscriptions, bills, rent —
+// the original Slice-5 case) or in (paychecks, regular freelance invoices,
+// rental income). Detection logic is identical; this just records which way
+// the money moves.
+export const recurringDirectionEnum = pgEnum("recurring_direction", ["expense", "income"]);
+
 // One row per detected (or user-entered) recurring series. typical_amount_cents
 // is stored as a magnitude (positive). min/max capture amount variance — useful
 // for utility bills that swing quarter-to-quarter. ignored=true means the user
@@ -261,6 +267,7 @@ export const recurringExpenses = pgTable(
     legCount: integer("leg_count").notNull().default(0),
     status: recurringStatusEnum("status").notNull().default("active"),
     source: recurringSourceEnum("source").notNull().default("detected"),
+    direction: recurringDirectionEnum("direction").notNull().default("expense"),
     ignored: boolean("ignored").notNull().default(false),
     confidence: numeric("confidence", { precision: 4, scale: 3 }),
     notes: text("notes"),
@@ -268,13 +275,14 @@ export const recurringExpenses = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    // Same merchant + same cadence collapses to one row. Same merchant at a
-    // different cadence (e.g. an annual + monthly billing for the same vendor)
-    // is allowed — those are genuinely separate series.
-    uniqueIndex("recurring_expenses_user_merchant_cadence_uniq").on(
+    // Same merchant + same cadence + same direction collapses to one row.
+    // Direction is part of the key so a merchant could (in theory) appear as
+    // both an expense and an income series without colliding.
+    uniqueIndex("recurring_expenses_user_merchant_cadence_dir_uniq").on(
       t.userId,
       t.merchantName,
       t.cadence,
+      t.direction,
     ),
     pgPolicy("recurring_expenses_select_own", {
       for: "select",
@@ -302,13 +310,16 @@ export const recurringExpenses = pgTable(
 
 // User-level settings. One row per user, keyed on user_id directly (no surrogate
 // id) — there's never more than one settings record per user. monthly_income_cents
-// is nullable so the user can defer entering it; the on-track widget falls back
-// to "income unset" until they fill it in.
+// holds the user's best estimate of monthly take-home; Slice 7 income detection
+// will surface a "your detected income is X, you said Y" reconciliation rather
+// than overwriting it. monthly_savings_target_cents is the user's monthly
+// savings goal (defaults to 15-20% of income at onboarding; user can adjust).
 export const userSettings = pgTable(
   "user_settings",
   {
     userId: uuid("user_id").primaryKey(),
     monthlyIncomeCents: integer("monthly_income_cents"),
+    monthlySavingsTargetCents: integer("monthly_savings_target_cents"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

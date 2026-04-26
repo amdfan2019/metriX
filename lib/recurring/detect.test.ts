@@ -226,5 +226,95 @@ describe("detectRecurringSeries", () => {
     expect(series).toHaveLength(1);
     expect(series[0].cadence).toBe("monthly");
     expect(series[0].legCount).toBe(3);
+    expect(series[0].direction).toBe("expense");
+  });
+
+  describe("income direction", () => {
+    const inflow = (overrides: Partial<DetectInput>): DetectInput => ({
+      id: "p1",
+      merchantName: "ACME PAYROLL",
+      category: "income",
+      amountCents: 450000, // $4500 inflow
+      transactionDate: "2026-04-15",
+      isTransfer: false,
+      pending: false,
+      ...overrides,
+    });
+
+    it("detects a fortnightly paycheck", () => {
+      const series = detectRecurringSeries(
+        [
+          inflow({ id: "p1", transactionDate: "2026-02-06" }),
+          inflow({ id: "p2", transactionDate: "2026-02-20" }),
+          inflow({ id: "p3", transactionDate: "2026-03-06" }),
+          inflow({ id: "p4", transactionDate: "2026-03-20" }),
+          inflow({ id: "p5", transactionDate: "2026-04-03" }),
+        ],
+        { direction: "income" },
+      );
+      expect(series).toHaveLength(1);
+      expect(series[0].direction).toBe("income");
+      expect(series[0].cadence).toBe("fortnightly");
+      expect(series[0].legCount).toBe(5);
+      expect(series[0].typicalAmountCents).toBe(450000);
+    });
+
+    it("detects a monthly paycheck on the 15th", () => {
+      const series = detectRecurringSeries(
+        [
+          inflow({ id: "m1", transactionDate: "2026-01-15", amountCents: 600000 }),
+          inflow({ id: "m2", transactionDate: "2026-02-13", amountCents: 600000 }), // shifted to Friday
+          inflow({ id: "m3", transactionDate: "2026-03-15", amountCents: 600000 }),
+        ],
+        { direction: "income" },
+      );
+      expect(series).toHaveLength(1);
+      expect(series[0].direction).toBe("income");
+      expect(series[0].cadence).toBe("monthly");
+    });
+
+    it("expense pass ignores income transactions even when they form a series", () => {
+      const series = detectRecurringSeries([
+        inflow({ id: "p1", transactionDate: "2026-02-06" }),
+        inflow({ id: "p2", transactionDate: "2026-02-20" }),
+        inflow({ id: "p3", transactionDate: "2026-03-06" }),
+      ]);
+      expect(series).toEqual([]);
+    });
+
+    it("income pass ignores outflow transactions", () => {
+      const series = detectRecurringSeries(
+        [
+          // Same merchant + cadence as Netflix, but spend not income.
+          t({ id: "n1", transactionDate: "2026-02-01", merchantName: "NETFLIX" }),
+          t({ id: "n2", transactionDate: "2026-03-01", merchantName: "NETFLIX" }),
+          t({ id: "n3", transactionDate: "2026-04-01", merchantName: "NETFLIX" }),
+        ],
+        { direction: "income" },
+      );
+      expect(series).toEqual([]);
+    });
+
+    it("income pass ignores positive amounts that aren't categorised as income", () => {
+      // A $50 refund tagged 'shopping' isn't a recurring income.
+      const series = detectRecurringSeries(
+        [
+          inflow({ id: "r1", transactionDate: "2026-03-01", category: "shopping", amountCents: 5000 }),
+          inflow({ id: "r2", transactionDate: "2026-04-01", category: "shopping", amountCents: 5000 }),
+        ],
+        { direction: "income" },
+      );
+      expect(series).toEqual([]);
+    });
+
+    it("rejects a one-off gift even when amounts match a recurring shape", () => {
+      const series = detectRecurringSeries(
+        [
+          inflow({ id: "g1", transactionDate: "2026-04-15", merchantName: "MOM TRANSFER", amountCents: 50000 }),
+        ],
+        { direction: "income" },
+      );
+      expect(series).toEqual([]);
+    });
   });
 });
