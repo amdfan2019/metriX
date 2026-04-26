@@ -50,6 +50,14 @@ export async function seedTransactionsAction(): Promise<DevActionResult> {
   return { ok: true, message: `Seeded ${rows.length} mock transactions.` };
 }
 
+/**
+ * Hard reset for dev iteration. Deletes both transactions and recurring
+ * series so a fresh sync + rescan rebuilds from scratch.
+ *
+ * Kept: merchant_aliases (the learned canonicalisation cache — rebuilding
+ * costs Gemini calls), accounts (re-synced from Basiq), settings, budgets,
+ * chat history, briefings.
+ */
 export async function wipeTransactionsAction(): Promise<DevActionResult> {
   assertDev();
   const supabase = await createClient();
@@ -58,19 +66,30 @@ export async function wipeTransactionsAction(): Promise<DevActionResult> {
   } = await supabase.auth.getUser();
   if (!user) return { error: "Not signed in." };
 
-  // RLS already scopes to the user, but the explicit filter satisfies postgrest's safety check.
-  const { error, count } = await supabase
-    .from("transactions")
-    .delete({ count: "exact" })
-    .eq("user_id", user.id);
-  if (error) return { error: `Wipe failed: ${error.message}` };
+  // Order matters: transactions reference recurring_expenses via
+  // recurring_expense_id (ON DELETE SET NULL), so we can delete in either
+  // order without FK violations. Doing them in parallel for speed.
+  const [
+    { error: txnErr, count: txnCount },
+    { error: recErr, count: recCount },
+  ] = await Promise.all([
+    supabase.from("transactions").delete({ count: "exact" }).eq("user_id", user.id),
+    supabase.from("recurring_expenses").delete({ count: "exact" }).eq("user_id", user.id),
+  ]);
+  if (txnErr) return { error: `Wipe transactions failed: ${txnErr.message}` };
+  if (recErr) return { error: `Wipe recurring failed: ${recErr.message}` };
 
   revalidatePath("/dashboard");
   revalidatePath("/transactions");
-  if (count === 0) {
-    return { ok: true, message: "Nothing to wipe — transactions table was already empty." };
+  revalidatePath("/subscriptions");
+
+  if ((txnCount ?? 0) === 0 && (recCount ?? 0) === 0) {
+    return { ok: true, message: "Nothing to wipe — already empty." };
   }
-  return { ok: true, message: `Wiped ${count} transaction${count === 1 ? "" : "s"}.` };
+  const parts: string[] = [];
+  if ((txnCount ?? 0) > 0) parts.push(`${txnCount} transaction${txnCount === 1 ? "" : "s"}`);
+  if ((recCount ?? 0) > 0) parts.push(`${recCount} recurring series`);
+  return { ok: true, message: `Wiped ${parts.join(" and ")}.` };
 }
 
 export async function regenerateBriefingAction(): Promise<DevActionResult> {
