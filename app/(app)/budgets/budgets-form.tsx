@@ -130,50 +130,52 @@ export function BudgetsForm({
         </div>
       )}
 
-      {/* Savings is the first row — it's the user's primary financial goal,
-          and the form's total has to include it for the math to balance. */}
-      {incomeDollars != null && incomeDollars > 0 && (
-        <div className="space-y-1.5 rounded-md border border-dashed border-green-500/30 bg-green-500/5 p-3">
-          <div className="flex items-baseline justify-between">
-            <Label htmlFor="savingsTarget" className="text-sm font-medium">
-              Savings target — what you want to set aside each month
-            </Label>
-            {suggestedSavingsDollars > 0 && savings !== suggestedSavingsDollars && (
-              <button
-                type="button"
-                onClick={() => setSavings(suggestedSavingsDollars)}
-                className="text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground"
-              >
-                Suggest ${suggestedSavingsDollars}
-              </button>
-            )}
-          </div>
-          <div className="relative max-w-xs">
-            <span
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
-              aria-hidden
-            >
-              $
-            </span>
-            <Input
-              id="savingsTarget"
-              name="savingsTarget"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              step={1}
-              value={savings || ""}
-              onChange={(e) =>
-                setSavings(e.target.value === "" ? 0 : Number(e.target.value))
-              }
-              placeholder="0"
-              className="pl-7"
-            />
-          </div>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {/* Savings sits in the same grid as the category caps so the layout is
+            visually symmetrical. It's still distinguished — a small "goal"
+            label since it's an outflow target, not a spending cap. */}
+        {incomeDollars != null && incomeDollars > 0 && (
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between">
+              <Label htmlFor="savingsTarget">
+                Savings <span className="text-[10px] uppercase tracking-wide text-muted-foreground">goal</span>
+              </Label>
+              {suggestedSavingsDollars > 0 && savings !== suggestedSavingsDollars && (
+                <button
+                  type="button"
+                  onClick={() => setSavings(suggestedSavingsDollars)}
+                  className="text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                  title={`Apply suggested $${suggestedSavingsDollars}`}
+                >
+                  Suggest ${suggestedSavingsDollars}
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <span
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
+                aria-hidden
+              >
+                $
+              </span>
+              <Input
+                id="savingsTarget"
+                name="savingsTarget"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={savings || ""}
+                onChange={(e) =>
+                  setSavings(e.target.value === "" ? 0 : Number(e.target.value))
+                }
+                placeholder="0"
+                className="pl-7"
+              />
+            </div>
+          </div>
+        )}
+
         {initialValues.map((v) => {
           const value = values[v.category];
           const matchesSuggestion = hasSuggestions && v.suggestedDollars > 0 && value === v.suggestedDollars;
