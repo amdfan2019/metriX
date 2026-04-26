@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CATEGORY_VALUES, type Category } from "@/lib/db/schema";
 import { addDays } from "@/lib/recurring/cadence";
+import { fetchNonSpendableAccountIds } from "@/lib/budgets/spendable-accounts";
 
 export interface RecentTransactionRow {
   id: string;
@@ -42,6 +43,7 @@ export async function getRecentTransactions(
     : DEFAULT_LIMIT;
 
   const since = addDays(todayISO, -days);
+  const excludedAccountIds = await fetchNonSpendableAccountIds(supabase, userId);
 
   let query = supabase
     .from("transactions")
@@ -53,6 +55,9 @@ export async function getRecentTransactions(
     .order("created_at", { ascending: false })
     .limit(limit);
   if (category) query = query.eq("category", category);
+  if (excludedAccountIds.length > 0) {
+    query = query.not("account_id", "in", `(${excludedAccountIds.join(",")})`);
+  }
 
   const { data, error } = await query;
   if (error) throw new Error(`get_recent_transactions failed: ${error.message}`);

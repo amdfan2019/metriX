@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CATEGORY_VALUES, type Category } from "@/lib/db/schema";
+import { fetchNonSpendableAccountIds } from "@/lib/budgets/spendable-accounts";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const NON_OUTFLOW = new Set<Category>(["income", "transfer"]);
@@ -23,7 +24,8 @@ export async function getSpendingByCategory(
   if (!ISO_DATE.test(end)) throw new Error("end_date must be YYYY-MM-DD");
   if (start > end) throw new Error("start_date must be on or before end_date");
 
-  const { data, error } = await supabase
+  const excludedAccountIds = await fetchNonSpendableAccountIds(supabase, userId);
+  let q = supabase
     .from("transactions")
     .select("category, amount_cents")
     .eq("user_id", userId)
@@ -31,6 +33,10 @@ export async function getSpendingByCategory(
     .gte("transaction_date", start)
     .lte("transaction_date", end)
     .lt("amount_cents", 0);
+  if (excludedAccountIds.length > 0) {
+    q = q.not("account_id", "in", `(${excludedAccountIds.join(",")})`);
+  }
+  const { data, error } = await q;
   if (error) throw new Error(`get_spending_by_category failed: ${error.message}`);
 
   const totals: Record<string, number> = {};

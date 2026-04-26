@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CATEGORY_VALUES, type Category } from "@/lib/db/schema";
+import { fetchNonSpendableAccountIds } from "@/lib/budgets/spendable-accounts";
 
 export interface TrendRow {
   category: Category;
@@ -44,7 +45,8 @@ export async function findTrends(
   const start = `${months[0]}-01`;
   const end = todayISO;
 
-  const { data, error } = await supabase
+  const excludedAccountIds = await fetchNonSpendableAccountIds(supabase, userId);
+  let q = supabase
     .from("transactions")
     .select("category, amount_cents, transaction_date")
     .eq("user_id", userId)
@@ -52,6 +54,10 @@ export async function findTrends(
     .gte("transaction_date", start)
     .lte("transaction_date", end)
     .lt("amount_cents", 0);
+  if (excludedAccountIds.length > 0) {
+    q = q.not("account_id", "in", `(${excludedAccountIds.join(",")})`);
+  }
+  const { data, error } = await q;
   if (error) throw new Error(`find_trends failed: ${error.message}`);
 
   // Bucket: category → month → cents

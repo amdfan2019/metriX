@@ -3,6 +3,7 @@ import {
   budgetStatus,
   currentMonthSpend,
   projectMonthEnd,
+  projectMonthEndSmart,
   todaySydney,
   type CalcTransaction,
 } from "./calc";
@@ -111,6 +112,65 @@ describe("projectMonthEnd", () => {
   it("rounds to the nearest cent", () => {
     // $10 on day 7 of 30 → 30/7 = 4.2857, $42.857 → 4286 cents
     expect(projectMonthEnd(1000, "2026-04-07")).toBe(4286);
+  });
+});
+
+describe("projectMonthEndSmart", () => {
+  it("returns just spent when all spending was recurring and nothing's upcoming", () => {
+    // Subscriptions paradigm: 4 subs already charged, none left this month.
+    const r = projectMonthEndSmart({
+      spentCents: 5746,
+      recurringSpentCents: 5746,
+      upcomingCommittedCents: 0,
+      todayISO: "2026-04-26",
+    });
+    expect(r).toBe(5746);
+  });
+
+  it("adds upcoming committed when more recurring is due before month-end", () => {
+    // Utilities paradigm: $180 paid, $90 Vodafone landing on the 30th.
+    const r = projectMonthEndSmart({
+      spentCents: 18000,
+      recurringSpentCents: 18000,
+      upcomingCommittedCents: 9000,
+      todayISO: "2026-04-26",
+    });
+    expect(r).toBe(27000);
+  });
+
+  it("collapses to linear extrapolation when nothing is recurring", () => {
+    // Dining paradigm: $400 in 26 days, no recurring streams in this category.
+    const r = projectMonthEndSmart({
+      spentCents: 40000,
+      recurringSpentCents: 0,
+      upcomingCommittedCents: 0,
+      todayISO: "2026-04-26",
+    });
+    // 40000/26 = 1538.46 cents/day × 4 days = 6154 → projection ≈ 46154
+    expect(r).toBe(46154);
+  });
+
+  it("handles hybrid categories — subtracts recurring from per-day pace", () => {
+    // Dining $400 spent, $14 of which was a McDonald's recurring.
+    // Variable rate = $386 / 26 ≈ $14.85/day × 4 days remaining = ~$59
+    // No upcoming recurring this month → projection = 40000 + 0 + 5938 = 45938
+    const r = projectMonthEndSmart({
+      spentCents: 40000,
+      recurringSpentCents: 1400,
+      upcomingCommittedCents: 0,
+      todayISO: "2026-04-26",
+    });
+    expect(r).toBe(45938);
+  });
+
+  it("returns spent + committed on the last day of the month (no extrapolation)", () => {
+    const r = projectMonthEndSmart({
+      spentCents: 10000,
+      recurringSpentCents: 0,
+      upcomingCommittedCents: 5000,
+      todayISO: "2026-04-30",
+    });
+    expect(r).toBe(15000);
   });
 });
 

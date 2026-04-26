@@ -206,16 +206,36 @@ export async function rescanRecurringForUser(
     }
   }
 
-  // 6. Stale-check: active detected rows that this scan didn't touch and
-  // whose next_expected_date is more than one cadence in the past flip to
-  // inactive. Manual rows aren't auto-flipped — the user owns them.
+  // 6. Cleanup pass — flip detected rows to inactive when either:
+  //   (a) Cadence collision: a different-cadence series for the same
+  //       (merchant, direction) was refreshed this scan, so this row is the
+  //       obsolete one. Without this, a paycheck redetected as 'fortnightly'
+  //       would coexist with an old 'monthly' detection of the same merchant
+  //       and the agent would double-count income.
+  //   (b) Stale: this row wasn't refreshed AND its next_expected_date is
+  //       more than one cadence in the past — looks cancelled.
+  // Manual rows are never auto-flipped; the user owns them.
+  const refreshedMerchantDirection = new Set<string>();
+  for (const id of refreshedSeriesIds) {
+    const row = existingById.get(id);
+    if (row) refreshedMerchantDirection.add(`${row.merchantName}::${row.direction}`);
+  }
+
   for (const existing of existingByKey.values()) {
     if (existing.source === "manual") continue;
     if (refreshedSeriesIds.has(existing.id)) continue;
     if (existing.status !== "active") continue;
+
+    const md = `${existing.merchantName}::${existing.direction}`;
+    const isCadenceCollision = refreshedMerchantDirection.has(md);
+
     const cadenceDays = CADENCE_WINDOWS[existing.cadence].centerDays;
-    if (daysBetween(existing.nextExpectedDate, todayISO) <= cadenceDays) continue;
-    if (existing.nextExpectedDate > todayISO) continue;
+    const isStale =
+      existing.nextExpectedDate <= todayISO &&
+      daysBetween(existing.nextExpectedDate, todayISO) > cadenceDays;
+
+    if (!isCadenceCollision && !isStale) continue;
+
     const { error: stErr } = await supabase
       .from("recurring_expenses")
       .update({ status: "inactive" })

@@ -7,6 +7,7 @@ import {
 import type { CalcTransaction } from "@/lib/budgets/calc";
 import type { Cadence } from "@/lib/db/schema";
 import { CATEGORY_VALUES, type Category } from "@/lib/db/schema";
+import { fetchNonSpendableAccountIds } from "@/lib/budgets/spendable-accounts";
 
 const CADENCE_CENTER_DAYS: Record<Cadence, number> = {
   weekly: 7,
@@ -48,6 +49,17 @@ export async function getOverallHealth(
 ): Promise<OverallHealthResult> {
   const monthStart = todayISO.slice(0, 8) + "01";
   const monthEnd = endOfMonth(todayISO);
+  const excludedAccountIds = await fetchNonSpendableAccountIds(supabase, userId);
+
+  let txQuery = supabase
+    .from("transactions")
+    .select("category, amount_cents, transaction_date")
+    .eq("user_id", userId)
+    .gte("transaction_date", monthStart)
+    .lte("transaction_date", todayISO);
+  if (excludedAccountIds.length > 0) {
+    txQuery = txQuery.not("account_id", "in", `(${excludedAccountIds.join(",")})`);
+  }
 
   const [
     { data: settingsData, error: sErr },
@@ -60,12 +72,7 @@ export async function getOverallHealth(
       .select("monthly_income_cents, monthly_savings_target_cents")
       .eq("user_id", userId)
       .maybeSingle(),
-    supabase
-      .from("transactions")
-      .select("category, amount_cents, transaction_date")
-      .eq("user_id", userId)
-      .gte("transaction_date", monthStart)
-      .lte("transaction_date", todayISO),
+    txQuery,
     supabase
       .from("recurring_expenses")
       .select("category, typical_amount_cents, next_expected_date")

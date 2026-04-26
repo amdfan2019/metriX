@@ -5,6 +5,7 @@ import {
   type CalcTransaction,
 } from "@/lib/budgets/calc";
 import { CATEGORY_VALUES, type Category } from "@/lib/db/schema";
+import { fetchNonSpendableAccountIds } from "@/lib/budgets/spendable-accounts";
 
 export type AffordVerdict = "yes" | "stretch" | "no";
 
@@ -58,12 +59,17 @@ export async function canIAfford(
 
   // Spent so far this month in this category.
   const monthStart = todayISO.slice(0, 8) + "01";
-  const { data: txData, error: txErr } = await supabase
+  const excludedAccountIds = await fetchNonSpendableAccountIds(supabase, userId);
+  let txQ = supabase
     .from("transactions")
     .select("category, amount_cents, transaction_date")
     .eq("user_id", userId)
     .gte("transaction_date", monthStart)
     .lte("transaction_date", todayISO);
+  if (excludedAccountIds.length > 0) {
+    txQ = txQ.not("account_id", "in", `(${excludedAccountIds.join(",")})`);
+  }
+  const { data: txData, error: txErr } = await txQ;
   if (txErr) throw new Error(`can_i_afford: txns fetch failed: ${txErr.message}`);
   const txns: CalcTransaction[] = (txData ?? []).map((r) => ({
     category: r.category as Category | null,

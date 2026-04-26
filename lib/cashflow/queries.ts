@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import type { Cadence } from "@/lib/db/schema";
 import { addDays, daysBetween } from "@/lib/recurring/cadence";
+import { fetchNonSpendableAccountIds } from "@/lib/budgets/spendable-accounts";
 import {
   baselineVariableSpend,
   findRiskDays,
@@ -173,13 +174,18 @@ async function computeVariableSpendBaseline(
   todayISO: string,
 ): Promise<number> {
   const since = addDays(todayISO, -30);
-  const { data, error } = await supabase
+  const excludedAccountIds = await fetchNonSpendableAccountIds(supabase);
+  let q = supabase
     .from("transactions")
     .select("amount_cents, transaction_date, recurring_expense_id, is_transfer, category, pending")
     .gte("transaction_date", since)
     .lte("transaction_date", todayISO)
     .eq("is_transfer", false)
     .eq("pending", false);
+  if (excludedAccountIds.length > 0) {
+    q = q.not("account_id", "in", `(${excludedAccountIds.join(",")})`);
+  }
+  const { data, error } = await q;
   if (error) throw new Error(`computeVariableSpendBaseline failed: ${error.message}`);
 
   const byDate = new Map<string, number>();

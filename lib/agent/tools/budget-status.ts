@@ -6,6 +6,7 @@ import {
   type CalcTransaction,
 } from "@/lib/budgets/calc";
 import type { Category } from "@/lib/db/schema";
+import { fetchNonSpendableAccountIds } from "@/lib/budgets/spendable-accounts";
 
 export interface BudgetStatusRow {
   category: Category;
@@ -37,17 +38,23 @@ export async function getBudgetStatus(
   const isCurrent = monthStr === todayISO.slice(0, 7);
   const effectiveToday = isCurrent ? todayISO : endOfMonth(monthStart);
 
+  const excludedAccountIds = await fetchNonSpendableAccountIds(supabase, userId);
+  let txQuery = supabase
+    .from("transactions")
+    .select("category, amount_cents, transaction_date")
+    .eq("user_id", userId)
+    .gte("transaction_date", monthStart)
+    .lte("transaction_date", effectiveToday);
+  if (excludedAccountIds.length > 0) {
+    txQuery = txQuery.not("account_id", "in", `(${excludedAccountIds.join(",")})`);
+  }
+
   const [{ data: budgetsData, error: bErr }, { data: txData, error: tErr }] = await Promise.all([
     supabase
       .from("budgets")
       .select("category, monthly_cap_cents")
       .eq("user_id", userId),
-    supabase
-      .from("transactions")
-      .select("category, amount_cents, transaction_date")
-      .eq("user_id", userId)
-      .gte("transaction_date", monthStart)
-      .lte("transaction_date", effectiveToday),
+    txQuery,
   ]);
   if (bErr) throw new Error(`get_budget_status: budgets fetch failed: ${bErr.message}`);
   if (tErr) throw new Error(`get_budget_status: txns fetch failed: ${tErr.message}`);

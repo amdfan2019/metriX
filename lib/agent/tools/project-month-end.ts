@@ -5,6 +5,7 @@ import {
   type CalcTransaction,
 } from "@/lib/budgets/calc";
 import { CATEGORY_VALUES, type Category } from "@/lib/db/schema";
+import { fetchNonSpendableAccountIds } from "@/lib/budgets/spendable-accounts";
 
 export interface ProjectionRow {
   category: Category;
@@ -31,12 +32,17 @@ export async function projectMonthEndTool(
     : null;
 
   const monthStart = todayISO.slice(0, 8) + "01";
-  const { data, error } = await supabase
+  const excludedAccountIds = await fetchNonSpendableAccountIds(supabase, userId);
+  let q = supabase
     .from("transactions")
     .select("category, amount_cents, transaction_date")
     .eq("user_id", userId)
     .gte("transaction_date", monthStart)
     .lte("transaction_date", todayISO);
+  if (excludedAccountIds.length > 0) {
+    q = q.not("account_id", "in", `(${excludedAccountIds.join(",")})`);
+  }
+  const { data, error } = await q;
   if (error) throw new Error(`project_month_end failed: ${error.message}`);
 
   const txns: CalcTransaction[] = (data ?? []).map((r) => ({

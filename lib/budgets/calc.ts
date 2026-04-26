@@ -54,6 +54,50 @@ export function projectMonthEnd(spentCents: number, todayISO: string): number {
   return Math.round((spentCents * lastDayOfMonth) / day);
 }
 
+export interface SmartProjectionInput {
+  /** Total cents spent in this category so far this month (positive). */
+  spentCents: number;
+  /** Subset of spentCents that's attributable to recurring streams (linked to a series). */
+  recurringSpentCents: number;
+  /** Cents from active recurring streams in this category not yet posted but expected before month-end. */
+  upcomingCommittedCents: number;
+  todayISO: string;
+}
+
+/**
+ * Recurring-aware projection. The naive linear projectMonthEnd extrapolates
+ * the user's pace to month-end, which works for steady categories like
+ * groceries / dining but lies for lumpy ones like subscriptions or rent
+ * — a single $24 Netflix charge halfway through the month gets multiplied to
+ * $48 even though there are no more Netflix charges until next month.
+ *
+ * The smart formula:
+ *   variableSoFar      = spentCents − recurringSpentCents
+ *   variablePerDay     = variableSoFar ÷ dayOfMonth
+ *   variableRemaining  = variablePerDay × daysRemaining
+ *   projection         = spentCents + upcomingCommittedCents + variableRemaining
+ *
+ * For a pure-subscriptions month (everything spent is recurring, nothing
+ * upcoming) this returns spentCents — exactly right, no more charges due.
+ * For pure-variable categories with no recurring streams, this collapses
+ * back to linear extrapolation. Hybrid categories get both: the recurring
+ * portion contributes its known upcoming amount, the variable portion
+ * extrapolates at its own pace.
+ */
+export function projectMonthEndSmart(input: SmartProjectionInput): number {
+  const year = Number(input.todayISO.slice(0, 4));
+  const month = Number(input.todayISO.slice(5, 7));
+  const day = Number(input.todayISO.slice(8, 10));
+  const lastDayOfMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (day <= 0) return input.spentCents + input.upcomingCommittedCents;
+
+  const daysRemaining = lastDayOfMonth - day;
+  const variableSoFar = Math.max(0, input.spentCents - input.recurringSpentCents);
+  const variablePerDay = day > 0 ? variableSoFar / day : 0;
+  const variableRemaining = Math.round(variablePerDay * daysRemaining);
+  return input.spentCents + input.upcomingCommittedCents + variableRemaining;
+}
+
 export type BudgetStatus = "ok" | "warn" | "over";
 
 /**

@@ -2,11 +2,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { fetchUserBudgets, fetchCurrentMonthTransactions } from "@/lib/budgets/queries";
+import {
+  fetchUserBudgets,
+  fetchCurrentMonthTransactions,
+  fetchRecurringSpentByCategory,
+} from "@/lib/budgets/queries";
 import {
   budgetStatus,
   currentMonthSpend,
-  projectMonthEnd,
+  projectMonthEndSmart,
   todaySydney,
   type BudgetStatus,
 } from "@/lib/budgets/calc";
@@ -80,13 +84,15 @@ export default async function DashboardPage() {
   }
 
   const briefing = user ? await fetchTodayBriefing(supabase, user.id) : null;
-  const [budgets, txns, committedRemaining, accounts, forecast] = await Promise.all([
-    fetchUserBudgets(),
-    fetchCurrentMonthTransactions(today),
-    expectedRemainingThisMonthByCategory(today),
-    fetchUserAccounts(),
-    buildCashflowForecast(today),
-  ]);
+  const [budgets, txns, committedRemaining, recurringSpentByCategory, accounts, forecast] =
+    await Promise.all([
+      fetchUserBudgets(),
+      fetchCurrentMonthTransactions(today),
+      expectedRemainingThisMonthByCategory(today),
+      fetchRecurringSpentByCategory(today),
+      fetchUserAccounts(),
+      buildCashflowForecast(today),
+    ]);
   const settings = settingsForRedirect;
 
   const spend = currentMonthSpend(txns, today);
@@ -101,7 +107,12 @@ export default async function DashboardPage() {
   const rows = budgets
     .map((b) => {
       const spent = spend[b.category] ?? 0;
-      const projected = projectMonthEnd(spent, today);
+      const projected = projectMonthEndSmart({
+        spentCents: spent,
+        recurringSpentCents: recurringSpentByCategory[b.category] ?? 0,
+        upcomingCommittedCents: committedRemaining[b.category] ?? 0,
+        todayISO: today,
+      });
       const status = budgetStatus(spent, b.monthlyCapCents);
       const projectedStatus = budgetStatus(projected, b.monthlyCapCents);
       const pct = Math.min(100, Math.round((spent / b.monthlyCapCents) * 100));
