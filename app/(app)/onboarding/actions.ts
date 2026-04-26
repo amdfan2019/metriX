@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { listSpendingCategories } from "@/lib/budgets/calc";
 import { suggestBudgets } from "@/lib/budgets/suggest";
-import { CATEGORY_VALUES, type Category } from "@/lib/db/schema";
 
 export type OnboardingState =
   | { ok: true }
@@ -87,7 +86,3 @@ export async function completeOnboarding(
   revalidatePath("/settings");
   redirect("/dashboard");
 }
-
-// Exported for use in tests / future callers wanting just the suggested map.
-export type { Category };
-export { CATEGORY_VALUES };

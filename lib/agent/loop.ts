@@ -1,4 +1,4 @@
-import type { Content, FunctionCall, Part } from "@google/genai";
+import type { Content, Part } from "@google/genai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { geminiClient, GEMINI_MODEL } from "@/lib/gemini/client";
 import { TOOL_DECLARATIONS } from "./declarations";
@@ -8,9 +8,19 @@ import { executeTool } from "./tools";
 /** Cap on tool round-trips per user message — safety rail against runaway loops. */
 export const MAX_TOOL_ROUNDTRIPS = 5;
 
+/**
+ * One function call emitted by the model.
+ *
+ * `thoughtSignature` is required by Gemini 3 thinking models — when we send
+ * the model's prior turn back in the next request, every function-call part
+ * must carry its original signature or the API rejects the request with
+ * "Function call is missing a thought_signature". We capture it from the
+ * streamed Part and echo it back in `assistantParts`.
+ */
 export interface ToolCallRecord {
   name: string;
   args: Record<string, unknown>;
+  thoughtSignature?: string;
 }
 
 export interface ToolResultRecord {
@@ -101,15 +111,27 @@ export async function* runAgentLoop(
 
     try {
       for await (const chunk of stream) {
-        const text = chunk.text;
-        if (text) {
-          assistantText += text;
-          yield { type: "text-delta", text };
-        }
-        const fns = (chunk.functionCalls ?? []) as FunctionCall[];
-        for (const fn of fns) {
-          if (!fn.name) continue;
-          toolCalls.push({ name: fn.name, args: (fn.args ?? {}) as Record<string, unknown> });
+        // Walk the raw parts ourselves rather than using chunk.text /
+        // chunk.functionCalls — those getters strip the part-level
+        // `thoughtSignature` that Gemini 3 requires on the round-trip.
+        const parts = chunk.candidates?.[0]?.content?.parts ?? [];
+        for (const part of parts) {
+          // Skip "thought" parts (model's internal reasoning) — we don't
+          // surface chain-of-thought to the user, and Gemini doesn't require
+          // their signatures on subsequent requests.
+          if (part.thought) continue;
+
+          if (typeof part.text === "string" && part.text.length > 0) {
+            assistantText += part.text;
+            yield { type: "text-delta", text: part.text };
+          }
+          if (part.functionCall?.name) {
+            toolCalls.push({
+              name: part.functionCall.name,
+              args: (part.functionCall.args ?? {}) as Record<string, unknown>,
+              thoughtSignature: part.thoughtSignature,
+            });
+          }
         }
       }
     } catch (e) {
@@ -122,10 +144,14 @@ export async function* runAgentLoop(
 
     // Append the assistant turn to contents BEFORE executing tools — the
     // tool response parts must follow the model turn that requested them.
+    // Echo the original thoughtSignature on each functionCall part: Gemini 3
+    // rejects the next request otherwise.
     const assistantParts: Part[] = [];
     if (assistantText) assistantParts.push({ text: assistantText });
     for (const tc of toolCalls) {
-      assistantParts.push({ functionCall: { name: tc.name, args: tc.args } });
+      const part: Part = { functionCall: { name: tc.name, args: tc.args } };
+      if (tc.thoughtSignature) part.thoughtSignature = tc.thoughtSignature;
+      assistantParts.push(part);
     }
     contents.push({ role: "model", parts: assistantParts });
 
@@ -205,7 +231,12 @@ export function messagesToGeminiContents(
       if (r.content) parts.push({ text: r.content });
       const tcs = (r.toolCalls as ToolCallRecord[] | null) ?? [];
       for (const tc of tcs) {
-        parts.push({ functionCall: { name: tc.name, args: tc.args } });
+        // Carry the thoughtSignature back so subsequent Gemini requests
+        // pass validation. Without it the next turn would fail with
+        // "Function call is missing a thought_signature".
+        const part: Part = { functionCall: { name: tc.name, args: tc.args } };
+        if (tc.thoughtSignature) part.thoughtSignature = tc.thoughtSignature;
+        parts.push(part);
       }
       if (parts.length > 0) out.push({ role: "model", parts });
     } else if (r.role === "tool") {
