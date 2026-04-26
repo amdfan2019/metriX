@@ -227,39 +227,45 @@ export default async function DashboardPage() {
           <h2 className="mb-3 text-sm font-medium text-muted-foreground">Budgets this month</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {rows.map((r) => (
-              <Card key={r.category}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardDescription>{CATEGORY_LABELS[r.category]}</CardDescription>
-                    {r.status !== "ok" && (
-                      <Badge
-                        variant={r.status === "over" ? "destructive" : "secondary"}
-                        className="text-xs"
-                      >
-                        {r.status === "over" ? "Over" : `${r.pct}%`}
-                      </Badge>
-                    )}
-                  </div>
-                  <CardTitle className="text-lg">
-                    {fmt(r.spent)}{" "}
-                    <span className="text-sm font-normal text-muted-foreground">
-                      / {fmt(r.monthlyCapCents)}
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={cn("h-full transition-all", STATUS_BAR_CLASS[r.status])}
-                      style={{ width: `${r.pct}%` }}
-                      aria-hidden
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Projecting {fmt(r.projected)} by month-end
-                  </p>
-                </CardContent>
-              </Card>
+              <Link
+                key={r.category}
+                href={`/transactions?category=${r.category}`}
+                className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Card className="h-full transition-colors hover:border-foreground/20 hover:bg-muted/30">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardDescription>{CATEGORY_LABELS[r.category]}</CardDescription>
+                      {r.status !== "ok" && (
+                        <Badge
+                          variant={r.status === "over" ? "destructive" : "secondary"}
+                          className="text-xs"
+                        >
+                          {r.status === "over" ? "Over" : `${r.pct}%`}
+                        </Badge>
+                      )}
+                    </div>
+                    <CardTitle className="text-lg">
+                      {fmt(r.spent)}{" "}
+                      <span className="text-sm font-normal text-muted-foreground">
+                        / {fmt(r.monthlyCapCents)}
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn("h-full transition-all", STATUS_BAR_CLASS[r.status])}
+                        style={{ width: `${r.pct}%` }}
+                        aria-hidden
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Projecting {fmt(r.projected)} by month-end
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
             ))}
           </div>
         </section>
