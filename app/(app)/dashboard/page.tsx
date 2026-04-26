@@ -34,7 +34,7 @@ import { DevToolsBar } from "./dev-tools-bar";
 const CATEGORY_LABELS: Record<Category, string> = {
   groceries: "Groceries",
   dining: "Dining",
-  rent: "Rent",
+  housing: "Housing",
   utilities: "Utilities",
   transport: "Transport",
   entertainment: "Entertainment",

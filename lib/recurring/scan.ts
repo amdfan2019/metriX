@@ -301,7 +301,7 @@ export async function linkManualSubscription(
 
   const category = sub.category as Category;
   const tolerance =
-    category === "utilities" || category === "rent" ? 0.5 : 0.25;
+    category === "utilities" || category === "housing" ? 0.5 : 0.25;
   const typical = sub.typical_amount_cents as number;
   // typical is a positive magnitude; outflows are stored negative.
   const minMagnitude = Math.round(typical * (1 - tolerance));

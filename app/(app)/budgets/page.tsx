@@ -12,7 +12,7 @@ import { buttonVariants } from "@/components/ui/button";
 const STARTER_DEFAULTS_DOLLARS: Record<string, number> = {
   groceries: 800,
   dining: 400,
-  rent: 2500,
+  housing: 2500,
   utilities: 250,
   transport: 250,
   entertainment: 200,

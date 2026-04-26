@@ -75,7 +75,7 @@ describe("simulateCashflow", () => {
   it("walks down to negative balance when outflows exceed start balance", () => {
     // $300 start, $50/day spend, $400 bill on day 5 → bottoms out around day 5.
     const stream: RecurringStreamInput = {
-      id: "rent",
+      id: "rent-stream",
       merchantName: "Rent",
       cadence: "monthly",
       typicalAmountCents: 40000,
@@ -119,7 +119,7 @@ describe("findRiskDays", () => {
 
   it("flags every day below the buffer with the trigger event", () => {
     const stream: RecurringStreamInput = {
-      id: "rent",
+      id: "rent-stream",
       merchantName: "Rent",
       cadence: "monthly",
       typicalAmountCents: 80000,

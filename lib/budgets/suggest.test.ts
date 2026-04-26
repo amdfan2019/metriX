@@ -20,8 +20,8 @@ describe("suggestBudgets", () => {
     expect(r.spending_envelope_cents).toBe(550000);
     const byCategory = Object.fromEntries(r.rows.map((row) => [row.category, row.cents]));
 
-    // Rent ratio 36% of envelope = $1980; rounded to whole $.
-    expect(byCategory.rent).toBe(198000);
+    // Housing ratio 36% of envelope = $1980; rounded to whole $.
+    expect(byCategory.housing).toBe(198000);
     // Groceries 15% = $825 → $825 (already whole dollar).
     expect(byCategory.groceries).toBe(82500);
     // Utilities ratio 7% of $5500 = $385 → $385 — under the $400 cap.

@@ -47,7 +47,7 @@ For each input transaction, return:
 Categorisation guidance:
 - groceries: supermarkets and grocers (Woolworths, Coles, Aldi, Harris Farm, IGA).
 - dining: cafes, restaurants, takeaway, food delivery (Uber Eats, DoorDash, Menulog).
-- rent: residential rent payments. Mortgage repayments also fit here for v1.
+- housing: residential rent, mortgage interest charges, mortgage repayments, strata / body corporate fees, council rates. Anything that's a cost of having a place to live.
 - utilities: electricity (AGL, Origin, EnergyAustralia), gas, water (Sydney Water), internet, phone.
 - transport: Opal, Uber/DiDi/Ola, fuel (BP, Shell, 7-Eleven, Caltex), tolls (Linkt).
 - subscriptions: Netflix, Spotify, Apple, Google, AWS personal, gym memberships, news.
@@ -58,7 +58,7 @@ Categorisation guidance:
 - transfer: internal transfers between accounts; credit card payments. The pipeline already detects most transfers structurally — only assign here if the description clearly says transfer/payment.
 - other: when nothing else fits.
 
-Use ONLY the categories listed. Do not invent new ones.`;
+Use ONLY the categories listed. Do not invent new ones. Do not use 'rent' — it has been replaced by 'housing'.`;
 
 /**
  * Categorises a batch of transactions in one Gemini call. Returns one result

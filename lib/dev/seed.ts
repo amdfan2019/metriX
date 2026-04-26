@@ -34,8 +34,8 @@ const PLAN: Plan[] = [
   { daysAgo: 58, category: "income", dollars: 4500, description: "ACME PTY LTD SALARY", merchant: "ACME PTY LTD" },
 
   // --- Rent — monthly, ~1st of month ---
-  { daysAgo: 5, category: "rent", dollars: -2400, description: "RENTAL PAYMENT 4 ALEXANDRIA", merchant: "Rent" },
-  { daysAgo: 35, category: "rent", dollars: -2400, description: "RENTAL PAYMENT 4 ALEXANDRIA", merchant: "Rent" },
+  { daysAgo: 5, category: "housing", dollars: -2400, description: "RENTAL PAYMENT 4 ALEXANDRIA", merchant: "Rent" },
+  { daysAgo: 35, category: "housing", dollars: -2400, description: "RENTAL PAYMENT 4 ALEXANDRIA", merchant: "Rent" },
 
   // --- Groceries (~2x/week) ---
   { daysAgo: 1, category: "groceries", dollars: -78, description: "WOOLWORTHS NEWTOWN", merchant: "Woolworths" },

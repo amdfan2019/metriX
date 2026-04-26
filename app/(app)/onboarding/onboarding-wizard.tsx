@@ -15,7 +15,7 @@ import { completeOnboarding, type OnboardingState } from "./actions";
 const LABELS: Record<Category, string> = {
   groceries: "Groceries",
   dining: "Dining out",
-  rent: "Rent / mortgage",
+  housing: "Housing",
   utilities: "Utilities",
   transport: "Transport",
   entertainment: "Entertainment",

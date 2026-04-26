@@ -10,7 +10,7 @@ import { CATEGORY_VALUES, type Category } from "@/lib/db/schema";
  * cross-account movement, neither belongs in a category cap).
  */
 const DEFAULT_SPLIT: Partial<Record<Category, number>> = {
-  rent: 0.36,
+  housing: 0.36,
   groceries: 0.15,
   utilities: 0.07,
   transport: 0.10,

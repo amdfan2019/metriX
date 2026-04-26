@@ -20,10 +20,12 @@ import {
 // the actual isolation. This matches Supabase's recommended pattern.
 
 // Fixed v1 category set. Adding new values requires a migration; we treat this as a slow-changing axis.
+// `housing` covers rent, mortgage interest, mortgage repayments, strata, body
+// corporate — the whole shelter cost bucket.
 export const CATEGORY_VALUES = [
   "groceries",
   "dining",
-  "rent",
+  "housing",
   "utilities",
   "transport",
   "entertainment",

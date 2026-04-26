@@ -42,8 +42,8 @@ describe("computeOverallHealth", () => {
   it("returns tight when flexible remaining is positive but under 15% of income", () => {
     const h = computeOverallHealth({
       monthlyIncomeCents: 500000,
-      monthTransactions: [t({ category: "rent", amountCents: -250000 })],
-      committedRemaining: { rent: 200000 },
+      monthTransactions: [t({ category: "housing", amountCents: -250000 })],
+      committedRemaining: { housing: 200000 },
       todayISO: "2026-04-15",
     });
     expect(h.flexibleRemainingCents).toBe(50000);
