@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncTransactionsForUser } from "@/lib/basiq/sync";
+import { generateAndPersistBriefing } from "@/lib/agent/briefing";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -38,11 +39,26 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const results: Array<{ userId: string; ok: boolean; pulled?: number; error?: string }> = [];
+  const results: Array<{
+    userId: string;
+    ok: boolean;
+    pulled?: number;
+    briefingOk?: boolean;
+    error?: string;
+  }> = [];
   for (const [userId, { basiqUserId, since }] of byUser) {
     try {
       const r = await syncTransactionsForUser(admin, userId, basiqUserId, { since });
-      results.push({ userId, ok: true, pulled: r.pulled });
+      // Briefing runs after sync + recurring rescan so the snapshot is fresh.
+      // Failures here don't fail the whole run — sync is the primary job.
+      let briefingOk = false;
+      try {
+        await generateAndPersistBriefing(admin, userId);
+        briefingOk = true;
+      } catch (e) {
+        console.error(`[cron] briefing for ${userId} failed:`, e);
+      }
+      results.push({ userId, ok: true, pulled: r.pulled, briefingOk });
     } catch (e) {
       results.push({ userId, ok: false, error: e instanceof Error ? e.message : String(e) });
     }

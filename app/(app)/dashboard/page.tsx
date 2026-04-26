@@ -9,6 +9,10 @@ import {
   todaySydney,
   type BudgetStatus,
 } from "@/lib/budgets/calc";
+import { fetchMonthlyIncomeCents } from "@/lib/budgets/income";
+import { computeOverallHealth, type OverallStatus } from "@/lib/budgets/overall";
+import { expectedRemainingThisMonthByCategory } from "@/lib/recurring/queries";
+import { fetchTodayBriefing } from "@/lib/agent/briefing";
 import type { Category } from "@/lib/db/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -57,12 +61,21 @@ export default async function DashboardPage() {
   const greeting = user?.email?.split("@")[0] ?? "there";
 
   const today = todaySydney();
-  const [budgets, txns] = await Promise.all([
+  const briefing = user ? await fetchTodayBriefing(supabase, user.id) : null;
+  const [budgets, txns, monthlyIncomeCents, committedRemaining] = await Promise.all([
     fetchUserBudgets(),
     fetchCurrentMonthTransactions(today),
+    fetchMonthlyIncomeCents(),
+    expectedRemainingThisMonthByCategory(today),
   ]);
 
   const spend = currentMonthSpend(txns, today);
+  const overall = computeOverallHealth({
+    monthlyIncomeCents,
+    monthTransactions: txns,
+    committedRemaining,
+    todayISO: today,
+  });
 
   const rows = budgets
     .map((b) => {
@@ -98,6 +111,16 @@ export default async function DashboardPage() {
       </header>
 
       {isDev && <DevToolsBar />}
+
+      <OnTrackCard
+        status={overall.status}
+        spentCents={overall.spentCents}
+        committedCents={overall.committedCents}
+        monthlyIncomeCents={overall.monthlyIncomeCents}
+        flexibleRemainingCents={overall.flexibleRemainingCents}
+        daysRemaining={overall.daysRemaining}
+        perDayCents={overall.perDayCents}
+      />
 
       {alerts.length > 0 && (
         <Card className="border-destructive/40 bg-destructive/5">
@@ -136,9 +159,16 @@ export default async function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Today&apos;s briefing</CardTitle>
-          <CardDescription>
-            A daily Gemini-written summary will live here once Slice 6 lands. For now, the alert card above is your read.
-          </CardDescription>
+          {briefing ? (
+            <CardDescription className="whitespace-pre-wrap text-foreground">
+              {briefing.content}
+            </CardDescription>
+          ) : (
+            <CardDescription>
+              No briefing yet for {today}. The daily cron writes one after the bank sync; in dev,
+              click <strong>Regen briefing</strong> above.
+            </CardDescription>
+          )}
         </CardHeader>
       </Card>
 
@@ -199,5 +229,98 @@ export default async function DashboardPage() {
         </section>
       )}
     </div>
+  );
+}
+
+const STATUS_LABEL: Record<OverallStatus, string> = {
+  "on-track": "On track",
+  tight: "Tight",
+  over: "Over budget",
+  "income-unset": "Set your income",
+};
+
+const STATUS_BADGE_CLASS: Record<OverallStatus, string> = {
+  "on-track": "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30",
+  tight: "bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/30",
+  over: "bg-destructive/15 text-destructive border-destructive/30",
+  "income-unset": "bg-muted text-muted-foreground border-border",
+};
+
+function OnTrackCard({
+  status,
+  spentCents,
+  committedCents,
+  monthlyIncomeCents,
+  flexibleRemainingCents,
+  daysRemaining,
+  perDayCents,
+}: {
+  status: OverallStatus;
+  spentCents: number;
+  committedCents: number;
+  monthlyIncomeCents: number | null;
+  flexibleRemainingCents: number;
+  daysRemaining: number;
+  perDayCents: number;
+}) {
+  if (status === "income-unset") {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Set your monthly income</CardTitle>
+          <CardDescription>
+            Once we know your income we can show whether you&apos;re on track this month.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href="/settings" className={buttonVariants({ size: "sm" })}>
+            Add income
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const used = spentCents + committedCents;
+  const pct = monthlyIncomeCents
+    ? Math.min(100, Math.round((used / monthlyIncomeCents) * 100))
+    : 0;
+  const barClass =
+    status === "over"
+      ? "bg-destructive"
+      : status === "tight"
+        ? "bg-yellow-500"
+        : "bg-green-500";
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-base">This month</CardTitle>
+          <Badge variant="outline" className={cn("text-xs", STATUS_BADGE_CLASS[status])}>
+            {STATUS_LABEL[status]}
+          </Badge>
+        </div>
+        <CardDescription>
+          {flexibleRemainingCents >= 0
+            ? `${fmt(flexibleRemainingCents)} flexible · ~${fmt(perDayCents)}/day for ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} left`
+            : `${fmt(Math.abs(flexibleRemainingCents))} over income${committedCents > 0 ? " (counting upcoming recurring)" : ""}`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className={cn("h-full transition-all", barClass)}
+            style={{ width: `${pct}%` }}
+            aria-hidden
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {fmt(spentCents)} spent
+          {committedCents > 0 && ` · ${fmt(committedCents)} upcoming recurring`}
+          {monthlyIncomeCents != null && ` · of ${fmt(monthlyIncomeCents)} income`}
+        </p>
+      </CardContent>
+    </Card>
   );
 }

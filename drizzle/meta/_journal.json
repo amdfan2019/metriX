@@ -22,6 +22,20 @@
       "when": 1777123459692,
       "tag": "0002_medical_spacker_dave",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777162679523,
+      "tag": "0003_smiling_thunderball",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777181150157,
+      "tag": "0004_strange_winter_soldier",
+      "breakpoints": true
     }
   ]
 }

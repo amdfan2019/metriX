@@ -1,8 +1,10 @@
 import { CheckCircle2, RefreshCw, TriangleAlert } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { fetchUserConnections } from "@/lib/basiq/queries";
+import { fetchMonthlyIncomeCents } from "@/lib/budgets/income";
 import { startBankConnection, manualSync, pullFromBasiq } from "./actions";
 import { MobileForm } from "./mobile-form";
+import { IncomeForm } from "./income-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,8 +29,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const connections = await fetchUserConnections();
+  const [connections, incomeCents] = await Promise.all([
+    fetchUserConnections(),
+    fetchMonthlyIncomeCents(),
+  ]);
   const userMobile = (user?.user_metadata?.mobile as string | undefined) ?? null;
+  const incomeDollars = incomeCents != null ? Math.round(incomeCents / 100) : null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-8 space-y-6">
@@ -64,7 +70,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
           <CardTitle>Account</CardTitle>
           <CardDescription>Signed in as {user?.email}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           <div className="space-y-1">
             <p className="text-sm font-medium">Mobile</p>
             <p className="text-xs text-muted-foreground">
@@ -72,6 +78,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
             </p>
           </div>
           <MobileForm defaultValue={userMobile} />
+          <div className="space-y-1 pt-2">
+            <p className="text-sm font-medium">Monthly income</p>
+            <p className="text-xs text-muted-foreground">
+              After-tax monthly take-home. Drives the on-track view and the AI agent&apos;s
+              affordability checks.
+            </p>
+          </div>
+          <IncomeForm defaultDollars={incomeDollars} />
         </CardContent>
       </Card>
 

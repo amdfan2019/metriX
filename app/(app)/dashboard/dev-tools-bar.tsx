@@ -1,6 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { seedTransactionsAction, wipeTransactionsAction } from "./dev-actions";
+import {
+  regenerateBriefingAction,
+  seedTransactionsAction,
+  wipeTransactionsAction,
+} from "./dev-actions";
 
 export function DevToolsBar() {
   return (
@@ -12,6 +16,11 @@ export function DevToolsBar() {
       <form action={seedTransactionsAction}>
         <Button type="submit" size="sm" variant="outline">
           Seed 60d transactions
+        </Button>
+      </form>
+      <form action={regenerateBriefingAction}>
+        <Button type="submit" size="sm" variant="outline">
+          Regen briefing
         </Button>
       </form>
       <form action={wipeTransactionsAction}>

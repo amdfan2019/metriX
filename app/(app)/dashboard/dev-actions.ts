@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { buildSeedTransactions } from "@/lib/dev/seed";
 import { todaySydney } from "@/lib/budgets/calc";
+import { generateAndPersistBriefing } from "@/lib/agent/briefing";
 
 function assertDev() {
   if (process.env.NODE_ENV === "production") {
@@ -41,4 +42,16 @@ export async function wipeTransactionsAction() {
 
   revalidatePath("/dashboard");
   revalidatePath("/transactions");
+}
+
+export async function regenerateBriefingAction() {
+  assertDev();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not signed in.");
+
+  await generateAndPersistBriefing(supabase, user.id);
+  revalidatePath("/dashboard");
 }

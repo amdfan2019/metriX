@@ -4,6 +4,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgPolicy,
@@ -137,6 +138,10 @@ export const transactions = pgTable(
     merchantName: text("merchant_name"),
     needsReview: boolean("needs_review").notNull().default(false),
     confidence: numeric("confidence", { precision: 4, scale: 3 }),
+    // Slice 5: when this txn is a leg of a detected recurring series.
+    recurringExpenseId: uuid("recurring_expense_id").references(() => recurringExpenses.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -217,6 +222,242 @@ export const merchantAliases = pgTable(
   ],
 ).enableRLS();
 
+// Cadence buckets for recurring expense detection. We deliberately keep this a
+// short fixed enum (vs. interval_days numeric) — easier to reason about, easier
+// to render labels for, and real-world recurring expenses overwhelmingly fall
+// into these buckets.
+export const CADENCE_VALUES = ["weekly", "fortnightly", "monthly", "yearly"] as const;
+export type Cadence = (typeof CADENCE_VALUES)[number];
+export const cadenceEnum = pgEnum("cadence", CADENCE_VALUES);
+
+// active = currently expected to recur. inactive = last_seen + cadence has passed
+// long enough ago that we don't expect another leg without intervention. Kept
+// (not deleted) so the user can see "this stopped" and the agent has historical context.
+export const recurringStatusEnum = pgEnum("recurring_status", ["active", "inactive"]);
+
+// detected = produced by the Slice 5 scanner from real transactions.
+// manual   = user added it themselves on the Subscriptions page.
+export const recurringSourceEnum = pgEnum("recurring_source", ["detected", "manual"]);
+
+// One row per detected (or user-entered) recurring series. typical_amount_cents
+// is stored as a magnitude (positive). min/max capture amount variance — useful
+// for utility bills that swing quarter-to-quarter. ignored=true means the user
+// flagged this as a false positive; we keep the row so we don't re-detect it.
+export const recurringExpenses = pgTable(
+  "recurring_expenses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    merchantName: text("merchant_name").notNull(),
+    category: categoryEnum("category").notNull(),
+    cadence: cadenceEnum("cadence").notNull(),
+    typicalAmountCents: integer("typical_amount_cents").notNull(),
+    minAmountCents: integer("min_amount_cents").notNull(),
+    maxAmountCents: integer("max_amount_cents").notNull(),
+    // Null for freshly-added manual entries with no observed history.
+    firstSeenDate: date("first_seen_date"),
+    lastSeenDate: date("last_seen_date"),
+    nextExpectedDate: date("next_expected_date").notNull(),
+    legCount: integer("leg_count").notNull().default(0),
+    status: recurringStatusEnum("status").notNull().default("active"),
+    source: recurringSourceEnum("source").notNull().default("detected"),
+    ignored: boolean("ignored").notNull().default(false),
+    confidence: numeric("confidence", { precision: 4, scale: 3 }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // Same merchant + same cadence collapses to one row. Same merchant at a
+    // different cadence (e.g. an annual + monthly billing for the same vendor)
+    // is allowed — those are genuinely separate series.
+    uniqueIndex("recurring_expenses_user_merchant_cadence_uniq").on(
+      t.userId,
+      t.merchantName,
+      t.cadence,
+    ),
+    pgPolicy("recurring_expenses_select_own", {
+      for: "select",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("recurring_expenses_insert_own", {
+      for: "insert",
+      to: "authenticated",
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("recurring_expenses_update_own", {
+      for: "update",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("recurring_expenses_delete_own", {
+      for: "delete",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+  ],
+).enableRLS();
+
+// User-level settings. One row per user, keyed on user_id directly (no surrogate
+// id) — there's never more than one settings record per user. monthly_income_cents
+// is nullable so the user can defer entering it; the on-track widget falls back
+// to "income unset" until they fill it in.
+export const userSettings = pgTable(
+  "user_settings",
+  {
+    userId: uuid("user_id").primaryKey(),
+    monthlyIncomeCents: integer("monthly_income_cents"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    pgPolicy("user_settings_select_own", {
+      for: "select",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("user_settings_insert_own", {
+      for: "insert",
+      to: "authenticated",
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("user_settings_update_own", {
+      for: "update",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("user_settings_delete_own", {
+      for: "delete",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+  ],
+).enableRLS();
+
+// Slice 6: chat with the AI agent. One rolling session per user for v1, but
+// the schema supports multiple — a "New chat" button just inserts a new
+// session row and we read from the latest.
+export const chatSessions = pgTable(
+  "chat_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    title: text("title"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("chat_sessions_user_updated_idx").on(t.userId, t.updatedAt),
+    pgPolicy("chat_sessions_select_own", {
+      for: "select",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("chat_sessions_insert_own", {
+      for: "insert",
+      to: "authenticated",
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("chat_sessions_update_own", {
+      for: "update",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("chat_sessions_delete_own", {
+      for: "delete",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+  ],
+).enableRLS();
+
+// Roles map to Gemini's content roles plus a synthetic 'tool' marker for the
+// function-response side of a tool round-trip. We store user_id redundantly
+// (also on chat_sessions) so RLS policies don't need a join.
+export const chatRoleEnum = pgEnum("chat_role", ["user", "assistant", "tool", "system"]);
+
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => chatSessions.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull(),
+    role: chatRoleEnum("role").notNull(),
+    // Plain text content. Null when an assistant turn was pure tool-calls
+    // with no narrative text, or for tool-response rows.
+    content: text("content"),
+    // For role='assistant': the function calls Gemini emitted in this turn.
+    // Shape: [{ name: string, args: object }]
+    toolCalls: jsonb("tool_calls"),
+    // For role='tool': which tool this row is the response for, plus the JSON-
+    // serialisable response payload.
+    toolName: text("tool_name"),
+    toolResponse: jsonb("tool_response"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("chat_messages_session_created_idx").on(t.sessionId, t.createdAt),
+    pgPolicy("chat_messages_select_own", {
+      for: "select",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("chat_messages_insert_own", {
+      for: "insert",
+      to: "authenticated",
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("chat_messages_delete_own", {
+      for: "delete",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+  ],
+).enableRLS();
+
+// Daily Gemini-written briefing. One row per user per day; the dashboard
+// reads today's row, the cron writes it after the daily Basiq sync.
+export const dailyBriefings = pgTable(
+  "daily_briefings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    briefingDate: date("briefing_date").notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("daily_briefings_user_date_uniq").on(t.userId, t.briefingDate),
+    pgPolicy("daily_briefings_select_own", {
+      for: "select",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("daily_briefings_insert_own", {
+      for: "insert",
+      to: "authenticated",
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("daily_briefings_update_own", {
+      for: "update",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("daily_briefings_delete_own", {
+      for: "delete",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+  ],
+).enableRLS();
+
 export type Budget = typeof budgets.$inferSelect;
 export type NewBudget = typeof budgets.$inferInsert;
 export type Transaction = typeof transactions.$inferSelect;
@@ -225,3 +466,13 @@ export type BankConnection = typeof bankConnections.$inferSelect;
 export type NewBankConnection = typeof bankConnections.$inferInsert;
 export type MerchantAlias = typeof merchantAliases.$inferSelect;
 export type NewMerchantAlias = typeof merchantAliases.$inferInsert;
+export type RecurringExpense = typeof recurringExpenses.$inferSelect;
+export type NewRecurringExpense = typeof recurringExpenses.$inferInsert;
+export type UserSettings = typeof userSettings.$inferSelect;
+export type NewUserSettings = typeof userSettings.$inferInsert;
+export type ChatSession = typeof chatSessions.$inferSelect;
+export type NewChatSession = typeof chatSessions.$inferInsert;
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type NewChatMessage = typeof chatMessages.$inferInsert;
+export type DailyBriefing = typeof dailyBriefings.$inferSelect;
+export type NewDailyBriefing = typeof dailyBriefings.$inferInsert;

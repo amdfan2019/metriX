@@ -1,11 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { basiq } from "./client";
 import { findTransferPairs, type PairableTransaction } from "./transfers";
+import { rescanRecurringForUser } from "@/lib/recurring/scan";
+import { todaySydney } from "@/lib/budgets/calc";
 
 export interface SyncResult {
   pulled: number;
   upserted: number;
   transfers: number;
+  recurringDetected: number;
 }
 
 interface SyncOptions {
@@ -51,12 +54,22 @@ export async function syncTransactionsForUser(
 
   const transfers = await detectTransfersForUser(supabase, appUserId);
 
+  // Recurring detection runs after transfer detection so its inputs already
+  // exclude transfer legs (the detector also filters them, but consistency
+  // matters when a manual seed bypasses the transfer pass).
+  const recurring = await rescanRecurringForUser(supabase, appUserId, todaySydney());
+
   await supabase
     .from("bank_connections")
     .update({ last_synced_at: new Date().toISOString() })
     .eq("user_id", appUserId);
 
-  return { pulled: txns.length, upserted: txns.length, transfers };
+  return {
+    pulled: txns.length,
+    upserted: txns.length,
+    transfers,
+    recurringDetected: recurring.detected,
+  };
 }
 
 /**

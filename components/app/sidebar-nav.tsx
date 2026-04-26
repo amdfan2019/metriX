@@ -7,6 +7,7 @@ import {
   CreditCard,
   LayoutDashboard,
   MessageCircle,
+  Repeat,
   Settings,
   Wallet,
 } from "lucide-react";
@@ -16,6 +17,7 @@ const items = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/transactions", label: "Transactions", icon: CreditCard },
   { href: "/budgets", label: "Budgets", icon: Wallet },
+  { href: "/subscriptions", label: "Subscriptions", icon: Repeat },
   { href: "/trends", label: "Trends", icon: BarChart3 },
   { href: "/chat", label: "Chat", icon: MessageCircle },
   { href: "/settings", label: "Settings", icon: Settings },

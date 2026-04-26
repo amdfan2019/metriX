@@ -7,6 +7,38 @@ import { basiq } from "@/lib/basiq/client";
 import { syncTransactionsForUser } from "@/lib/basiq/sync";
 
 export type SaveMobileState = { ok: true } | { error: string } | undefined;
+export type SaveIncomeState = { ok: true } | { error: string } | undefined;
+
+/**
+ * Stores monthly income in user_settings. Drives the on-track widget on the
+ * dashboard and the agent's `get_overall_health` tool.
+ */
+export async function saveMonthlyIncome(
+  _prev: SaveIncomeState,
+  formData: FormData,
+): Promise<SaveIncomeState> {
+  const raw = String(formData.get("incomeDollars") ?? "").trim();
+  const amount = Number(raw);
+  if (!Number.isFinite(amount) || amount < 0) {
+    return { error: "Income must be a positive number." };
+  }
+  const cents = Math.round(amount * 100);
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const { error } = await supabase
+    .from("user_settings")
+    .upsert({ user_id: user.id, monthly_income_cents: cents }, { onConflict: "user_id" });
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
 
 /**
  * Saves the user's mobile to user_metadata. Basiq requires a mobile for SMS
