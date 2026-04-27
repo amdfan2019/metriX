@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { basiq } from "./client";
 import { findTransferPairs, type PairableTransaction } from "./transfers";
 import { rescanRecurringForUser } from "@/lib/recurring/scan";
+import { rescanAlertsForUser } from "@/lib/alerts/scan";
 import { todaySydney } from "@/lib/budgets/calc";
 
 export interface SyncResult {
@@ -76,7 +77,17 @@ export async function syncTransactionsForUser(
   // Recurring detection runs after transfer detection so its inputs already
   // exclude transfer legs (the detector also filters them, but consistency
   // matters when a manual seed bypasses the transfer pass).
-  const recurring = await rescanRecurringForUser(supabase, appUserId, todaySydney());
+  const today = todaySydney();
+  const recurring = await rescanRecurringForUser(supabase, appUserId, today);
+
+  // Alert scan runs LAST — every other signal feeds it (transactions,
+  // recurring, budgets). Failures here don't fail the sync; alerts are
+  // additive intelligence on top of the primary data.
+  try {
+    await rescanAlertsForUser(supabase, appUserId, today);
+  } catch (e) {
+    console.error(`[sync] alert scan failed for ${appUserId}:`, e);
+  }
 
   await supabase
     .from("bank_connections")

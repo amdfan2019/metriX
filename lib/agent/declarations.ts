@@ -127,6 +127,12 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
     parameters: { type: Type.OBJECT, properties: {} },
   },
   {
+    name: "get_alerts",
+    description:
+      "Open proactive alerts the system has raised — transaction anomalies, recurring price changes, pending charges that would tip a budget over, and income arrivals that are late. Sorted critical → warn → info. Use this whenever the user asks 'anything I should know about?' or to ground the briefing's lead.",
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
     name: "get_cashflow_forecast",
     description:
       "Projects the user's spendable balance forward day-by-day from current balance, active recurring inflows/outflows, and recent variable spend. Returns risk days where the projection drops below the configured cashflow buffer (default $200), with the trigger event for each. Use for 'will I run out of money on the 12th?' and proactive risk-flagging in the briefing.",

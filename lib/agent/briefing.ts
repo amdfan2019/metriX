@@ -5,6 +5,7 @@ import { getOverallHealth } from "./tools/overall-health";
 import { getBudgetStatus } from "./tools/budget-status";
 import { findTrends } from "./tools/find-trends";
 import { getRecurringIncome } from "./tools/recurring-income";
+import { getAlerts } from "./tools/alerts";
 import { buildCashflowForecast } from "@/lib/cashflow/queries";
 
 const BRIEFING_SYSTEM_PROMPT = `You write a daily 3-4 sentence financial briefing for a personal-finance app user in Sydney, AUD. CFO-of-one perspective: direct, specific, no fluff.
@@ -12,13 +13,15 @@ const BRIEFING_SYSTEM_PROMPT = `You write a daily 3-4 sentence financial briefin
 Inputs are JSON snapshots of the user's current state. Output is plain text only — no markdown, no headings, no greetings, no sign-offs. Just the briefing.
 
 Lead with the most consequential thing. In rough priority order:
-  1. cashflow.first_risk_date set — the user's projected balance drops below the buffer; call out the date and trigger.
-  2. trends spike row, or budget over.
-  3. savings_status off-track or behind.
-  4. income drift > 10% — detected vs estimated income materially differ.
-  5. Otherwise: if everything's calm, confirm on-track confidently and call out one thing to maintain.
+  1. alerts.critical — anything in the critical bucket. Lead with it verbatim.
+  2. cashflow.first_risk_date set — projected balance drops below the buffer; call out date + trigger.
+  3. alerts.warn — price changes, smaller anomalies, mid-late income.
+  4. trends spike row, or budget over.
+  5. savings_status off-track or behind.
+  6. income drift > 10% — detected vs estimated income materially differ.
+  7. Otherwise: confirm on-track confidently and call out one thing to maintain.
 
-Use specific numbers ($83 not "some money"). Always check cashflow.first_risk_date, savings_status, income_drift_cents, and any spike rows — those are where you earn your keep.
+Use specific numbers ($83 not "some money"). Always check alerts.critical / alerts.warn first — those are why the system exists.
 
 If income isn't set, say that clearly and move on — don't fabricate health metrics.`;
 
@@ -46,11 +49,12 @@ export async function generateAndPersistBriefing(
   // is also called from the cron handler with the admin client. The cashflow
   // query path uses createClient() internally; for now we tolerate that — the
   // cron run for a user matches RLS via service-role key anyway.
-  const [health, budgets, trends, recurringIncome] = await Promise.all([
+  const [health, budgets, trends, recurringIncome, alerts] = await Promise.all([
     getOverallHealth(supabase, userId, {}, today),
     getBudgetStatus(supabase, userId, {}, today),
     findTrends(supabase, userId, { months: 3 }, today),
     getRecurringIncome(supabase, userId),
+    getAlerts(supabase, userId),
   ]);
 
   // The cashflow forecast goes through its own query helper that reads from
@@ -79,6 +83,19 @@ export async function generateAndPersistBriefing(
 
   const snapshot = {
     today,
+    alerts: {
+      counts: alerts.counts,
+      critical: alerts.rows.filter((a) => a.severity === "critical").map((a) => ({
+        kind: a.kind,
+        title: a.title,
+        body: a.body,
+      })),
+      warn: alerts.rows.filter((a) => a.severity === "warn").map((a) => ({
+        kind: a.kind,
+        title: a.title,
+        body: a.body,
+      })),
+    },
     health,
     cashflow: cashflowSummary,
     recurring_income: {

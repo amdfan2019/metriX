@@ -23,7 +23,9 @@ import {
 import { expectedRemainingThisMonthByCategory } from "@/lib/recurring/queries";
 import { fetchTodayBriefing } from "@/lib/agent/briefing";
 import { fetchUserAccounts, buildCashflowForecast } from "@/lib/cashflow/queries";
+import { fetchOpenAlerts } from "@/lib/alerts/queries";
 import { BalancesCard } from "./balances-card";
+import { AlertsCard } from "./alerts-card";
 import type { Category } from "@/lib/db/schema";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -83,15 +85,23 @@ export default async function DashboardPage() {
   }
 
   const briefing = user ? await fetchTodayBriefing(supabase, user.id) : null;
-  const [budgets, txns, committedRemaining, recurringSpentByCategory, accounts, forecast] =
-    await Promise.all([
-      fetchUserBudgets(),
-      fetchCurrentMonthTransactions(today),
-      expectedRemainingThisMonthByCategory(today),
-      fetchRecurringSpentByCategory(today),
-      fetchUserAccounts(),
-      buildCashflowForecast(today),
-    ]);
+  const [
+    budgets,
+    txns,
+    committedRemaining,
+    recurringSpentByCategory,
+    accounts,
+    forecast,
+    openAlerts,
+  ] = await Promise.all([
+    fetchUserBudgets(),
+    fetchCurrentMonthTransactions(today),
+    expectedRemainingThisMonthByCategory(today),
+    fetchRecurringSpentByCategory(today),
+    fetchUserAccounts(),
+    buildCashflowForecast(today),
+    fetchOpenAlerts(),
+  ]);
   const settings = settingsForRedirect;
 
   const spend = currentMonthSpend(txns, today);
@@ -155,6 +165,8 @@ export default async function DashboardPage() {
         savingsProgressCents={overall.savingsProgressCents}
         savingsStatus={overall.savingsStatus}
       />
+
+      <AlertsCard alerts={openAlerts} />
 
       <BalancesCard accounts={accounts} forecast={forecast} />
 

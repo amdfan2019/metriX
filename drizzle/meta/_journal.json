@@ -64,6 +64,13 @@
       "when": 1777215245684,
       "tag": "0008_bored_midnight",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777262244830,
+      "tag": "0009_breezy_shockwave",
+      "breakpoints": true
     }
   ]
 }

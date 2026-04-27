@@ -553,3 +553,91 @@ export type DailyBriefing = typeof dailyBriefings.$inferSelect;
 export type NewDailyBriefing = typeof dailyBriefings.$inferInsert;
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
+
+// Slice 9: proactive alerts. The system raises these unprompted when anomaly
+// detectors fire on each scan. Cards render on /dashboard; agent reads via
+// get_alerts(). Severity drives sort order and the briefing's lead.
+export const alertKindEnum = pgEnum("alert_kind", [
+  "transaction_anomaly", // single transaction unusually large for its (category, merchant) pair
+  "price_change", // a recurring leg's amount differs >15% from typical
+  "pending_over_budget", // pending txn would tip its category over the cap if it posts
+  "income_late", // active income series whose next_expected_date is past and no leg matched
+]);
+
+export const alertSeverityEnum = pgEnum("alert_severity", ["info", "warn", "critical"]);
+
+// `resolved` = the underlying condition went away (paycheck arrived, pending
+// txn posted, anomaly is no longer recent). `dismissed` = user clicked dismiss.
+// `snoozed` = user hid temporarily (snooze_until controls when it resurfaces).
+export const alertStatusEnum = pgEnum("alert_status", [
+  "open",
+  "resolved",
+  "dismissed",
+  "snoozed",
+]);
+
+export const alerts = pgTable(
+  "alerts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    kind: alertKindEnum("kind").notNull(),
+    severity: alertSeverityEnum("severity").notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    // Optional foreign keys to the source row. ON DELETE SET NULL so a
+    // wipe-all on transactions / recurring doesn't violate FK constraints —
+    // the alert just loses its link.
+    sourceTransactionId: uuid("source_transaction_id").references(() => transactions.id, {
+      onDelete: "set null",
+    }),
+    sourceRecurringId: uuid("source_recurring_id").references(() => recurringExpenses.id, {
+      onDelete: "set null",
+    }),
+    // Stable string key per anomaly so a re-scan doesn't duplicate; format is
+    // kind-specific (see lib/alerts/scan.ts). Examples:
+    //   "txn_anomaly:<txn_id>"
+    //   "price_change:<series_id>:<new_amount_cents>"
+    //   "pending_over_budget:<txn_id>"
+    //   "income_late:<series_id>:<expected_date>"
+    dedupKey: text("dedup_key").notNull(),
+    status: alertStatusEnum("status").notNull().default("open"),
+    snoozeUntil: timestamp("snooze_until", { withTimezone: true }),
+    // Free-form JSON for whatever context the agent / UI needs that doesn't
+    // fit body. Keeps the schema flexible without churning columns per kind.
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("alerts_user_dedup_uniq").on(t.userId, t.dedupKey),
+    index("alerts_user_status_idx").on(t.userId, t.status),
+    pgPolicy("alerts_select_own", {
+      for: "select",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("alerts_insert_own", {
+      for: "insert",
+      to: "authenticated",
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("alerts_update_own", {
+      for: "update",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+      withCheck: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+    pgPolicy("alerts_delete_own", {
+      for: "delete",
+      to: "authenticated",
+      using: sql`(select auth.uid()) = ${t.userId}`,
+    }),
+  ],
+).enableRLS();
+
+export type Alert = typeof alerts.$inferSelect;
+export type NewAlert = typeof alerts.$inferInsert;
+export type AlertKind = (typeof alertKindEnum.enumValues)[number];
+export type AlertSeverity = (typeof alertSeverityEnum.enumValues)[number];
+export type AlertStatus = (typeof alertStatusEnum.enumValues)[number];
