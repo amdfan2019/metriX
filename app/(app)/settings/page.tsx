@@ -45,7 +45,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
     <div className="mx-auto w-full max-w-3xl px-6 py-8 space-y-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">Account and bank connections.</p>
       </header>
 
       {params.connected === "true" && (
@@ -78,26 +77,23 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
         <CardContent className="space-y-4">
           <div className="space-y-1">
             <p className="text-sm font-medium">First name</p>
-            <p className="text-xs text-muted-foreground">
-              Used in the dashboard greeting and the AI agent.
-            </p>
           </div>
           <NameForm defaultName={userFirstName} />
           <div className="space-y-1 pt-2">
             <p className="text-sm font-medium">Mobile</p>
             <p className="text-xs text-muted-foreground">
-              Required by Basiq for SMS consent verification. AU format only.
+              Required by Basiq for SMS consent. AU format only.
             </p>
           </div>
           <MobileForm defaultValue={userMobile} />
           <div className="space-y-1 pt-2">
             <p className="text-sm font-medium">Monthly income</p>
             <p className="text-xs text-muted-foreground">
-              After-tax monthly take-home. Your savings target and category budget caps live on{" "}
+              After-tax monthly take-home. Allocated on{" "}
               <Link href="/budgets" className="underline">
                 Budgets
-              </Link>{" "}
-              — they have to add up to this number.
+              </Link>
+              .
             </p>
           </div>
           <IncomeForm defaultIncomeDollars={incomeDollars} />
@@ -109,10 +105,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
           <div className="flex items-start justify-between gap-3">
             <div>
               <CardTitle>Bank connections</CardTitle>
-              <CardDescription>
-                Connect via Basiq (sandbox in dev). We pull the last 90 days on first connect, then
-                sync daily.
-              </CardDescription>
             </div>
             {connections.length > 0 && (
               <form action={manualSync}>
@@ -165,10 +157,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
               </Button>
             </form>
           </div>
-          <p className="text-xs text-muted-foreground">
-            If Basiq doesn&apos;t auto-redirect back after consent, click <strong>Pull from
-            Basiq</strong> to reconcile.
-          </p>
         </CardContent>
       </Card>
     </div>

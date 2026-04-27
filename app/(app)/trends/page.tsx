@@ -48,9 +48,6 @@ export default async function TrendsPage() {
     <div className="mx-auto w-full max-w-5xl px-6 py-8 space-y-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Trends</h1>
-        <p className="text-sm text-muted-foreground">
-          Cashflow projection plus 6–12 months of spending history.
-        </p>
       </header>
 
       <Card>
@@ -58,7 +55,7 @@ export default async function TrendsPage() {
           <CardTitle className="text-base">Cashflow forecast — next 60 days</CardTitle>
           <CardDescription>
             {forecast
-              ? `Starting at ${fmtCents(forecast.startBalanceCents)}, projecting forward day-by-day with detected recurring streams + your variable-spend baseline. Dashed line is the ${fmtCents(forecast.bufferCents)} buffer.`
+              ? `Starting at ${fmtCents(forecast.startBalanceCents)}. Dashed line: ${fmtCents(forecast.bufferCents)} buffer.`
               : "Connect a bank to enable the cashflow forecast."}
           </CardDescription>
         </CardHeader>
@@ -79,10 +76,6 @@ export default async function TrendsPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Monthly outflow by category — last 12 months</CardTitle>
-          <CardDescription>
-            Stacked bars; hover for the per-category breakdown. Income, transfers, and savings/
-            investment account flows are excluded.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <MonthlyOutflowChart data={monthlyRows} />
@@ -92,9 +85,6 @@ export default async function TrendsPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Single-category trend</CardTitle>
-          <CardDescription>
-            Pick a category to see how it&apos;s moved month-over-month.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <CategoryTrendChart series={categorySeries} />

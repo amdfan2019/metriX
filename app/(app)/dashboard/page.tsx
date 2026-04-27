@@ -213,10 +213,7 @@ export default async function DashboardPage() {
               {briefing.content}
             </CardDescription>
           ) : (
-            <CardDescription>
-              No briefing yet for {today}. The daily cron writes one after the bank sync; in dev,
-              click <strong>Regen briefing</strong> above.
-            </CardDescription>
+            <CardDescription>No briefing yet for {today}.</CardDescription>
           )}
         </CardHeader>
       </Card>

@@ -59,9 +59,6 @@ export default async function BudgetsPage() {
     <div className="mx-auto w-full max-w-3xl px-6 py-8 space-y-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Budgets</h1>
-        <p className="text-sm text-muted-foreground">
-          Monthly cap per category, in AUD. The dashboard tracks your burn against these.
-        </p>
       </header>
 
       {!hasIncome && (
