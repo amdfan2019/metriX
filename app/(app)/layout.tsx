@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SidebarNav } from "@/components/app/sidebar-nav";
 import { SignOutButton } from "@/components/app/sign-out-button";
+import { MobileNav } from "@/components/app/mobile-nav";
 import { Separator } from "@/components/ui/separator";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -18,7 +19,6 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <aside className="hidden border-r bg-sidebar text-sidebar-foreground md:flex md:flex-col">
         <div className="px-5 py-5">
           <p className="text-base font-semibold tracking-tight">metriX</p>
-          <p className="text-xs text-sidebar-foreground/60">Personal finance, AI-first</p>
         </div>
         <Separator className="bg-sidebar-border" />
         <SidebarNav />
@@ -29,7 +29,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <SignOutButton />
         </div>
       </aside>
-      <main className="min-w-0">{children}</main>
+      <main className="min-w-0">
+        <MobileNav email={user.email ?? ""} />
+        {children}
+      </main>
     </div>
   );
 }

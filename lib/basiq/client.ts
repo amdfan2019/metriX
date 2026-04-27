@@ -161,6 +161,18 @@ export const basiq = {
   },
 
   /**
+   * Permanently disconnect a bank connection. Basiq stops syncing future
+   * transactions; existing transactions stay in our DB until the user wipes
+   * them explicitly. Idempotent — Basiq returns 204 even on a missing
+   * connection id, which the request helper tolerates.
+   */
+  async deleteConnection(basiqUserId: string, basiqConnectionId: string): Promise<void> {
+    await basiqRequest<void>(`/users/${basiqUserId}/connections/${basiqConnectionId}`, {
+      method: "DELETE",
+    });
+  },
+
+  /**
    * List the accounts Basiq has on file for a user — current + available
    * balance per account, plus class/type so we can decide which accounts
    * count toward "spendable balance" for the cashflow forecast.

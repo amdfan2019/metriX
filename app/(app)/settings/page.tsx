@@ -6,6 +6,8 @@ import { fetchUserBudgetSettings } from "@/lib/budgets/income";
 import { startBankConnection, manualSync, pullFromBasiq } from "./actions";
 import { MobileForm } from "./mobile-form";
 import { IncomeForm } from "./income-form";
+import { NameForm } from "./name-form";
+import { DisconnectButton } from "./disconnect-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +37,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
     fetchUserBudgetSettings(),
   ]);
   const userMobile = (user?.user_metadata?.mobile as string | undefined) ?? null;
+  const userFirstName = (user?.user_metadata?.first_name as string | undefined) ?? "";
   const incomeDollars =
     settings.monthlyIncomeCents != null ? Math.round(settings.monthlyIncomeCents / 100) : null;
 
@@ -74,6 +77,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1">
+            <p className="text-sm font-medium">First name</p>
+            <p className="text-xs text-muted-foreground">
+              Used in the dashboard greeting and the AI agent.
+            </p>
+          </div>
+          <NameForm defaultName={userFirstName} />
+          <div className="space-y-1 pt-2">
             <p className="text-sm font-medium">Mobile</p>
             <p className="text-xs text-muted-foreground">
               Required by Basiq for SMS consent verification. AU format only.
@@ -120,16 +130,22 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
           ) : (
             <ul className="divide-y rounded-md border">
               {connections.map((c) => (
-                <li key={c.id} className="flex items-center justify-between px-3 py-2.5">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium">{c.institutionName ?? "Bank"}</p>
+                <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="truncate text-sm font-medium">{c.institutionName ?? "Bank"}</p>
                     <p className="text-xs text-muted-foreground">
                       Last synced {formatRelative(c.lastSyncedAt)}
                     </p>
                   </div>
-                  <Badge variant={c.status === "active" ? "secondary" : "outline"} className="text-xs">
-                    {c.status}
-                  </Badge>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge
+                      variant={c.status === "active" ? "secondary" : "outline"}
+                      className="text-xs"
+                    >
+                      {c.status}
+                    </Badge>
+                    {c.status === "active" && <DisconnectButton connectionId={c.id} />}
+                  </div>
                 </li>
               ))}
             </ul>

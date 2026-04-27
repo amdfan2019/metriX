@@ -24,6 +24,7 @@ import { expectedRemainingThisMonthByCategory } from "@/lib/recurring/queries";
 import { fetchTodayBriefing } from "@/lib/agent/briefing";
 import { fetchUserAccounts, buildCashflowForecast } from "@/lib/cashflow/queries";
 import { fetchOpenAlerts } from "@/lib/alerts/queries";
+import { displayName, timeOfDayGreeting } from "@/lib/utils/greeting";
 import { BalancesCard } from "./balances-card";
 import { AlertsCard } from "./alerts-card";
 import type { Category } from "@/lib/db/schema";
@@ -70,7 +71,8 @@ export default async function DashboardPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const greeting = user?.email?.split("@")[0] ?? "there";
+  const name = displayName(user);
+  const greeting = timeOfDayGreeting();
 
   const today = todaySydney();
   const settingsForRedirect = await fetchUserBudgetSettings();
@@ -139,16 +141,15 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-8 space-y-6">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Good morning, {greeting}</h1>
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {greeting}, {name}
+        </h1>
+        {!hasBudgets && (
           <p className="text-sm text-muted-foreground">
-            {hasBudgets
-              ? `Today is ${today}. Tracking ${rows.length} categor${rows.length === 1 ? "y" : "ies"}.`
-              : "Set your monthly budgets to start tracking."}
+            Set your monthly budgets to start tracking.
           </p>
-        </div>
-        <Badge variant="secondary">Slice 2 · budgets</Badge>
+        )}
       </header>
 
       {isDev && <DevToolsBar />}

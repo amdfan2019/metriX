@@ -8,6 +8,24 @@ import { syncTransactionsForUser } from "@/lib/basiq/sync";
 
 export type SaveMobileState = { ok: true } | { error: string } | undefined;
 export type SaveIncomeState = { ok: true } | { error: string } | undefined;
+export type SaveNameState = { ok: true } | { error: string } | undefined;
+
+/** Updates the user's first name in auth.users.user_metadata.first_name. */
+export async function saveFirstName(
+  _prev: SaveNameState,
+  formData: FormData,
+): Promise<SaveNameState> {
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  if (!firstName) return { error: "First name can't be empty." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ data: { first_name: firstName } });
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
 
 /**
  * Stores monthly income only. Savings target lives on the /budgets page now —
@@ -121,6 +139,52 @@ export async function manualSync() {
   revalidatePath("/settings");
   revalidatePath("/dashboard");
   revalidatePath("/transactions");
+}
+
+export type DisconnectBankState = { ok: true; message: string } | { error: string };
+
+/**
+ * Disconnects a bank: calls Basiq's DELETE /users/:id/connections/:cid (so
+ * Basiq stops syncing) and marks our row inactive (so the UI stops showing it
+ * as live). Existing transactions stay in our DB — the user has to use Wipe
+ * all if they want them gone too.
+ */
+export async function disconnectBank(connectionId: string): Promise<DisconnectBankState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  // Pull the row so we have the basiq_connection_id + basiq_user_id.
+  const { data: row, error: lookupErr } = await supabase
+    .from("bank_connections")
+    .select("basiq_connection_id, basiq_user_id, institution_name")
+    .eq("id", connectionId)
+    .eq("user_id", user.id)
+    .single();
+  if (lookupErr) return { error: `Lookup failed: ${lookupErr.message}` };
+
+  try {
+    await basiq.deleteConnection(row.basiq_user_id as string, row.basiq_connection_id as string);
+  } catch (e) {
+    return {
+      error: `Basiq delete failed: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
+
+  const { error: updErr } = await supabase
+    .from("bank_connections")
+    .update({ status: "disconnected", updated_at: new Date().toISOString() })
+    .eq("id", connectionId)
+    .eq("user_id", user.id);
+  if (updErr) return { error: `Mark inactive failed: ${updErr.message}` };
+
+  revalidatePath("/settings");
+  return {
+    ok: true,
+    message: `Disconnected ${(row.institution_name as string | null) ?? "bank"}. Existing transactions stay; new ones won't sync.`,
+  };
 }
 
 /**
