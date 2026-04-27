@@ -144,7 +144,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
                     >
                       {c.status}
                     </Badge>
-                    {c.status === "active" && <DisconnectButton connectionId={c.id} />}
+                    {/* Always offer disconnect — invalid/expired connections need
+                        cleaning up too, not just active ones. */}
+                    <DisconnectButton connectionId={c.id} />
                   </div>
                 </li>
               ))}

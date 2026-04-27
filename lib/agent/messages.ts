@@ -39,6 +39,38 @@ export async function getOrCreateLatestSession(): Promise<string> {
   return created!.id as string;
 }
 
+/**
+ * Wipe every prior chat session (and its messages, via FK cascade) for the
+ * user, then create a fresh empty one. This is what /chat calls on page load
+ * — refreshing the page resets the chat thread back to zero, by design.
+ *
+ * Differs from getOrCreateLatestSession (which is what the /api/agent/chat
+ * route calls per-message): that one continues the existing active session
+ * mid-conversation, this one starts a brand new one.
+ */
+export async function resetAndCreateChatSession(): Promise<string> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not signed in.");
+
+  // Cascade deletes chat_messages via the FK declared in the schema.
+  const { error: delErr } = await supabase
+    .from("chat_sessions")
+    .delete()
+    .eq("user_id", user.id);
+  if (delErr) throw new Error(`chat reset failed: ${delErr.message}`);
+
+  const { data: created, error: cErr } = await supabase
+    .from("chat_sessions")
+    .insert({ user_id: user.id })
+    .select("id")
+    .single();
+  if (cErr) throw new Error(`chat session create failed: ${cErr.message}`);
+  return created!.id as string;
+}
+
 export async function fetchSessionMessages(sessionId: string): Promise<ChatMessageRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase

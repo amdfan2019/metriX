@@ -1,9 +1,10 @@
-import { fetchSessionMessages, getOrCreateLatestSession } from "@/lib/agent/messages";
+import { resetAndCreateChatSession } from "@/lib/agent/messages";
 import { ChatThread } from "./chat-thread";
 
 export default async function ChatPage() {
-  const sessionId = await getOrCreateLatestSession();
-  const messages = await fetchSessionMessages(sessionId);
+  // Each /chat page load resets the user's chat history. Refresh = fresh.
+  // Old sessions (and their messages) are deleted via FK cascade.
+  await resetAndCreateChatSession();
   const isDev = process.env.NODE_ENV !== "production";
 
   return (
@@ -11,10 +12,11 @@ export default async function ChatPage() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Chat</h1>
         <p className="text-sm text-muted-foreground">
-          Ask anything about your money — the agent reads your real budget state.
+          Ask anything about your money — the agent reads your real budget state. Closing this
+          page clears the conversation.
         </p>
       </header>
-      <ChatThread initialMessages={messages} isDev={isDev} />
+      <ChatThread initialMessages={[]} isDev={isDev} />
     </div>
   );
 }

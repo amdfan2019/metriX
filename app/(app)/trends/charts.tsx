@@ -15,6 +15,20 @@ import {
 } from "recharts";
 import type { Category } from "@/lib/db/schema";
 
+// Permissive shape for Recharts tooltip render props — Recharts' actual
+// ValueType is a union including arrays we don't use, so we degrade to
+// unknown and coerce via Number() at the call site.
+interface TooltipRenderProps {
+  active?: boolean;
+  payload?: ReadonlyArray<{
+    value?: unknown;
+    name?: unknown;
+    color?: string;
+    dataKey?: string | number;
+  }>;
+  label?: unknown;
+}
+
 const aud0 = new Intl.NumberFormat("en-AU", {
   style: "currency",
   currency: "AUD",
@@ -49,6 +63,67 @@ const CATEGORY_LABEL: Record<Category, string> = {
   transfer: "Transfer",
   other: "Other",
 };
+
+// Custom tooltips with Tailwind classes — solid background, shadow, border.
+// Recharts' default tooltip relies on inline styles that can render
+// translucent over data; this gives clean readable boxes that don't bleed
+// into adjacent bars.
+
+function SingleSeriesTooltip({
+  active,
+  payload,
+  label,
+  seriesLabel,
+}: TooltipRenderProps & { seriesLabel?: string }) {
+  if (!active || !payload || payload.length === 0) return null;
+  const p = payload[0];
+  const value = typeof p.value === "number" ? p.value : Number(p.value ?? 0);
+  return (
+    <div className="rounded-md border bg-background p-2 text-xs shadow-md">
+      <div className="font-medium">{String(label ?? "")}</div>
+      <div className="mt-0.5 tabular-nums text-muted-foreground">
+        {seriesLabel ?? "Value"}: <span className="text-foreground">{fmt(value)}</span>
+      </div>
+    </div>
+  );
+}
+
+function StackedCategoryTooltip({ active, payload, label }: TooltipRenderProps) {
+  if (!active || !payload || payload.length === 0) return null;
+  // Recharts gives us a payload entry per Bar even when value is 0 — filter
+  // those out so the tooltip stays readable.
+  const items = payload
+    .filter((p) => Number(p.value ?? 0) > 0)
+    .slice()
+    .sort((a, b) => Number(b.value ?? 0) - Number(a.value ?? 0));
+  const total = items.reduce((s, p) => s + Number(p.value ?? 0), 0);
+  return (
+    <div className="rounded-md border bg-background p-2 text-xs shadow-md min-w-[160px]">
+      <div className="flex items-baseline justify-between gap-2 font-medium">
+        <span>{String(label ?? "")}</span>
+        <span className="tabular-nums">{fmt(total)}</span>
+      </div>
+      <div className="mt-1.5 space-y-0.5">
+        {items.map((p) => {
+          const cat = p.dataKey as Category;
+          return (
+            <div key={String(p.dataKey)} className="flex items-baseline justify-between gap-3">
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <span
+                  className="inline-block size-2 rounded-sm"
+                  style={{ background: p.color }}
+                  aria-hidden
+                />
+                {CATEGORY_LABEL[cat] ?? String(p.dataKey)}
+              </span>
+              <span className="tabular-nums">{fmt(Number(p.value ?? 0))}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // =====================================================================
 // Cashflow forecast — line over next 60 days
@@ -91,14 +166,13 @@ export function CashflowForecastChart({
           />
           <Tooltip
             cursor={{ stroke: "hsl(var(--muted-foreground))", strokeDasharray: "3 3" }}
-            contentStyle={{
-              background: "hsl(var(--background))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: 6,
-              fontSize: 12,
-            }}
-            labelFormatter={(v) => String(v ?? "")}
-            formatter={(v) => [fmt(Number(v) || 0), "Projected balance"]}
+            wrapperStyle={{ outline: "none" }}
+            content={(props) => (
+              <SingleSeriesTooltip
+                {...(props as unknown as TooltipRenderProps)}
+                seriesLabel="Projected balance"
+              />
+            )}
           />
           <ReferenceLine
             y={bufferCents}
@@ -123,9 +197,6 @@ export function CashflowForecastChart({
             dot={(props: { cx?: number; cy?: number; payload?: ForecastPoint }) => {
               const date = props.payload?.date;
               if (!date || !riskSet.has(date)) {
-                // Recharts requires a renderable element even when there's no
-                // dot — return a zero-size SVG group. Recharts handles keying
-                // internally, so no explicit key needed.
                 return <g />;
               }
               return (
@@ -169,39 +240,37 @@ export function MonthlyOutflowChart({
     return <p className="text-sm text-muted-foreground">No history yet.</p>;
   }
   return (
-    <div className="h-80 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-          <XAxis
-            dataKey="month"
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-            tickFormatter={(v: string) => v.slice(2)}
-          />
-          <YAxis
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-            tickFormatter={(v: number) => fmt(v)}
-            width={70}
-          />
-          <Tooltip
-            cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
-            contentStyle={{
-              background: "hsl(var(--background))",
-              border: "1px solid hsl(var(--border))",
-              borderRadius: 6,
-              fontSize: 12,
-            }}
-            formatter={(v, name) => [
-              fmt(Number(v) || 0),
-              CATEGORY_LABEL[name as Category] ?? String(name),
-            ]}
-          />
-          {STACKED_CATEGORIES.map((c) => (
-            <Bar key={c} dataKey={c} stackId="a" fill={CATEGORY_COLOR[c]} />
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
-      <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+    <div className="space-y-3">
+      {/* Chart container is its own h-80 — the legend below sits OUTSIDE so
+          it can't be clipped by the chart's overflow box. */}
+      <div className="h-80 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+            <XAxis
+              dataKey="month"
+              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tickFormatter={(v: string) => v.slice(2)}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tickFormatter={(v: number) => fmt(v)}
+              width={70}
+            />
+            <Tooltip
+              cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
+              wrapperStyle={{ outline: "none" }}
+              content={(props) => (
+                <StackedCategoryTooltip {...(props as unknown as TooltipRenderProps)} />
+              )}
+            />
+            {STACKED_CATEGORIES.map((c) => (
+              <Bar key={c} dataKey={c} stackId="a" fill={CATEGORY_COLOR[c]} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
         {STACKED_CATEGORIES.map((c) => (
           <span key={c} className="inline-flex items-center gap-1.5">
             <span
@@ -233,6 +302,7 @@ export function CategoryTrendChart({ series }: { series: CategorySeries[] }) {
 
   const total = points.reduce((sum, p) => sum + p.cents, 0);
   const avg = points.length > 0 ? Math.round(total / points.length) : 0;
+  const seriesLabel = selected ? CATEGORY_LABEL[selected] : "Value";
 
   return (
     <div className="space-y-3">
@@ -270,13 +340,13 @@ export function CategoryTrendChart({ series }: { series: CategorySeries[] }) {
             />
             <Tooltip
               cursor={{ stroke: "hsl(var(--muted-foreground))", strokeDasharray: "3 3" }}
-              contentStyle={{
-                background: "hsl(var(--background))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: 6,
-                fontSize: 12,
-              }}
-              formatter={(v) => [fmt(Number(v) || 0), selected ? CATEGORY_LABEL[selected] : ""]}
+              wrapperStyle={{ outline: "none" }}
+              content={(props) => (
+                <SingleSeriesTooltip
+                  {...(props as unknown as TooltipRenderProps)}
+                  seriesLabel={seriesLabel}
+                />
+              )}
             />
             <Line
               type="monotone"
