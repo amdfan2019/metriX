@@ -165,12 +165,14 @@ export async function disconnectBank(connectionId: string): Promise<DisconnectBa
     .single();
   if (lookupErr) return { error: `Lookup failed: ${lookupErr.message}` };
 
+  // Best-effort upstream cleanup. If Basiq's record is already gone or
+  // unreachable, we still want to mark our local row disconnected — that's
+  // the whole point when the user is clearing out an inactive bank.
+  let upstreamWarning: string | null = null;
   try {
     await basiq.deleteConnection(row.basiq_user_id as string, row.basiq_connection_id as string);
   } catch (e) {
-    return {
-      error: `Basiq delete failed: ${e instanceof Error ? e.message : String(e)}`,
-    };
+    upstreamWarning = e instanceof Error ? e.message : String(e);
   }
 
   const { error: updErr } = await supabase
@@ -181,9 +183,12 @@ export async function disconnectBank(connectionId: string): Promise<DisconnectBa
   if (updErr) return { error: `Mark inactive failed: ${updErr.message}` };
 
   revalidatePath("/settings");
+  const name = (row.institution_name as string | null) ?? "bank";
   return {
     ok: true,
-    message: `Disconnected ${(row.institution_name as string | null) ?? "bank"}. Existing transactions stay; new ones won't sync.`,
+    message: upstreamWarning
+      ? `Disconnected ${name} locally. Basiq cleanup skipped: ${upstreamWarning}`
+      : `Disconnected ${name}. Existing transactions stay; new ones won't sync.`,
   };
 }
 

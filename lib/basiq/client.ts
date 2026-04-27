@@ -67,6 +67,8 @@ interface RequestOptions {
   method?: "GET" | "POST" | "DELETE";
   body?: unknown;
   query?: Record<string, string | number | undefined>;
+  /** Status codes to treat as success (return undefined) instead of throwing. */
+  tolerateStatus?: number[];
 }
 
 async function basiqRequest<T>(path: string, opts: RequestOptions = {}): Promise<T> {
@@ -98,6 +100,9 @@ async function basiqRequest<T>(path: string, opts: RequestOptions = {}): Promise
   const res = await fetch(url, { method, headers, body: bodyString, cache: "no-store" });
 
   if (!res.ok) {
+    if (opts.tolerateStatus?.includes(res.status)) {
+      return undefined as unknown as T;
+    }
     const body = await res.text();
     throw new Error(`Basiq ${opts.method ?? "GET"} ${path} failed: ${res.status} ${body}`);
   }
@@ -167,8 +172,12 @@ export const basiq = {
    * connection id, which the request helper tolerates.
    */
   async deleteConnection(basiqUserId: string, basiqConnectionId: string): Promise<void> {
+    // Tolerate 404 / already-gone: an invalid/expired connection on Basiq's
+    // side is the exact case the user is trying to clean up, so a missing
+    // upstream record is success, not failure.
     await basiqRequest<void>(`/users/${basiqUserId}/connections/${basiqConnectionId}`, {
       method: "DELETE",
+      tolerateStatus: [404, 410],
     });
   },
 
