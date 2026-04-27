@@ -1,5 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { geminiClient, GEMINI_MODEL } from "@/lib/gemini/client";
+
+// Briefing prefers Gemini 3 Flash but doesn't depend on any preview-only
+// features (no tools, no thought signatures), so we can fall back to the GA
+// 2.5 Flash model when 3-preview is overloaded. Order matters — first one
+// that responds wins.
+const BRIEFING_MODEL_CHAIN = [GEMINI_MODEL, "gemini-2.5-flash"] as const;
+
+function isTransientGeminiError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  // SDK surfaces upstream errors as a stringified JSON blob in the message.
+  // 503 UNAVAILABLE = model overloaded; 429 RESOURCE_EXHAUSTED = quota / rate
+  // limit. Both are worth retrying with a different model.
+  return /"code":\s*(503|429)|UNAVAILABLE|RESOURCE_EXHAUSTED/i.test(msg);
+}
 import { todaySydney } from "@/lib/budgets/calc";
 import { getOverallHealth } from "./tools/overall-health";
 import { getBudgetStatus } from "./tools/budget-status";
@@ -121,26 +135,34 @@ export async function generateAndPersistBriefing(
   };
 
   const ai = geminiClient();
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            text: `Today is ${today}. Write the briefing. State JSON:\n${JSON.stringify(snapshot, null, 2)}`,
-          },
-        ],
-      },
-    ],
-    config: {
-      systemInstruction: BRIEFING_SYSTEM_PROMPT,
-      temperature: 0.4,
-    },
-  });
+  const userPrompt = `Today is ${today}. Write the briefing. State JSON:\n${JSON.stringify(snapshot, null, 2)}`;
 
-  const content = (response.text ?? "").trim();
-  if (!content) throw new Error("Briefing generation returned empty text.");
+  let content = "";
+  let lastError: unknown = null;
+  for (const model of BRIEFING_MODEL_CHAIN) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+        config: {
+          systemInstruction: BRIEFING_SYSTEM_PROMPT,
+          temperature: 0.4,
+        },
+      });
+      content = (response.text ?? "").trim();
+      if (content) break;
+      lastError = new Error(`Briefing generation returned empty text (model: ${model}).`);
+    } catch (e) {
+      lastError = e;
+      if (!isTransientGeminiError(e)) throw e;
+      console.warn(`[briefing] ${model} unavailable, trying next model in chain.`);
+    }
+  }
+  if (!content) {
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Briefing generation failed across all models.");
+  }
 
   // Upsert: one briefing per user per day.
   const { error } = await supabase.from("daily_briefings").upsert(
