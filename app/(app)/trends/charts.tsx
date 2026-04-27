@@ -152,20 +152,20 @@ export function CashflowForecastChart({
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={points} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.3} />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
             tickFormatter={(v: string) => v.slice(5)}
             interval={tickEvery - 1}
           />
           <YAxis
-            tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+            tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
             tickFormatter={(v: number) => fmt(v)}
             width={70}
           />
           <Tooltip
-            cursor={{ stroke: "hsl(var(--muted-foreground))", strokeDasharray: "3 3" }}
+            cursor={{ stroke: "var(--color-muted-foreground)", strokeDasharray: "3 3" }}
             wrapperStyle={{ outline: "none" }}
             content={(props) => (
               <SingleSeriesTooltip
@@ -176,23 +176,23 @@ export function CashflowForecastChart({
           />
           <ReferenceLine
             y={bufferCents}
-            stroke="hsl(var(--muted-foreground))"
+            stroke="var(--color-muted-foreground)"
             strokeDasharray="4 4"
             ifOverflow="extendDomain"
             label={{
               value: `Buffer ${fmt(bufferCents)}`,
-              fill: "hsl(var(--muted-foreground))",
+              fill: "var(--color-muted-foreground)",
               fontSize: 10,
               position: "insideBottomRight",
             }}
           />
           {points.some((p) => p.balance_cents < 0) && (
-            <ReferenceLine y={0} stroke="hsl(var(--destructive))" strokeOpacity={0.5} />
+            <ReferenceLine y={0} stroke="var(--color-destructive)" strokeOpacity={0.5} />
           )}
           <Line
             type="monotone"
             dataKey="balance_cents"
-            stroke={riskDates.length > 0 ? "#eab308" : "hsl(var(--foreground))"}
+            stroke={riskDates.length > 0 ? "#eab308" : "var(--color-foreground)"}
             strokeWidth={2}
             dot={(props: { cx?: number; cy?: number; payload?: ForecastPoint }) => {
               const date = props.payload?.date;
@@ -204,7 +204,7 @@ export function CashflowForecastChart({
                   cx={props.cx}
                   cy={props.cy}
                   r={4}
-                  fill="hsl(var(--destructive))"
+                  fill="var(--color-destructive)"
                 />
               );
             }}
@@ -246,19 +246,19 @@ export function MonthlyOutflowChart({
       <div className="h-80 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.3} />
             <XAxis
               dataKey="month"
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
               tickFormatter={(v: string) => v.slice(2)}
             />
             <YAxis
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
               tickFormatter={(v: number) => fmt(v)}
               width={70}
             />
             <Tooltip
-              cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
+              cursor={{ fill: "var(--color-muted)", opacity: 0.4 }}
               wrapperStyle={{ outline: "none" }}
               content={(props) => (
                 <StackedCategoryTooltip {...(props as unknown as TooltipRenderProps)} />
@@ -327,19 +327,19 @@ export function CategoryTrendChart({ series }: { series: CategorySeries[] }) {
       <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={points} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.3} />
             <XAxis
               dataKey="month"
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
               tickFormatter={(v: string) => v.slice(2)}
             />
             <YAxis
-              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
               tickFormatter={(v: number) => fmt(v)}
               width={70}
             />
             <Tooltip
-              cursor={{ stroke: "hsl(var(--muted-foreground))", strokeDasharray: "3 3" }}
+              cursor={{ stroke: "var(--color-muted-foreground)", strokeDasharray: "3 3" }}
               wrapperStyle={{ outline: "none" }}
               content={(props) => (
                 <SingleSeriesTooltip
@@ -351,7 +351,7 @@ export function CategoryTrendChart({ series }: { series: CategorySeries[] }) {
             <Line
               type="monotone"
               dataKey="cents"
-              stroke={selected ? CATEGORY_COLOR[selected] : "hsl(var(--foreground))"}
+              stroke={selected ? CATEGORY_COLOR[selected] : "var(--color-foreground)"}
               strokeWidth={2}
               dot={{ r: 3 }}
               activeDot={{ r: 5 }}

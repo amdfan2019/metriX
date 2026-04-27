@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SidebarNav } from "@/components/app/sidebar-nav";
 import { SignOutButton } from "@/components/app/sign-out-button";
 import { MobileNav } from "@/components/app/mobile-nav";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 import { Separator } from "@/components/ui/separator";
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -22,8 +23,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         </div>
         <Separator className="bg-sidebar-border" />
         <SidebarNav />
-        <div className="mt-auto border-t border-sidebar-border px-3 py-3">
-          <p className="px-3 pb-2 text-xs text-sidebar-foreground/60 truncate" title={user.email ?? ""}>
+        <div className="mt-auto border-t border-sidebar-border px-3 py-3 space-y-2">
+          <div className="px-3">
+            <ThemeToggle />
+          </div>
+          <p className="px-3 text-xs text-sidebar-foreground/60 truncate" title={user.email ?? ""}>
             {user.email}
           </p>
           <SignOutButton />

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { SidebarNav } from "./sidebar-nav";
 import { SignOutButton } from "./sign-out-button";
+import { ThemeToggle } from "./theme-toggle";
 import { Separator } from "@/components/ui/separator";
 
 interface MobileNavProps {
@@ -36,9 +37,12 @@ export function MobileNav({ email }: MobileNavProps) {
           <Separator className="bg-sidebar-border" />
           <SidebarNav />
           <Separator className="bg-sidebar-border" />
-          <div className="px-3 py-3">
+          <div className="px-3 py-3 space-y-2">
+            <div className="px-3">
+              <ThemeToggle />
+            </div>
             <p
-              className="px-3 pb-2 text-xs text-sidebar-foreground/60 truncate"
+              className="px-3 text-xs text-sidebar-foreground/60 truncate"
               title={email}
             >
               {email}
