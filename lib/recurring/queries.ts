@@ -87,7 +87,7 @@ export interface AdditionalIncomeRow {
 
 /**
  * Income transactions in the last `days` that aren't part of any recurring
- * series — gifts, refunds, ad-hoc payments. Slice 7's "additional income" feed.
+ * series — gifts, refunds, ad-hoc payments. Powers the "additional income" feed.
  */
 export async function fetchAdditionalIncome(days = 60): Promise<AdditionalIncomeRow[]> {
   const supabase = await createClient();
@@ -139,7 +139,7 @@ function rowToRecurring(r: Record<string, unknown>): RecurringRow {
 }
 
 /**
- * For Slice 6's `can_i_afford` and dashboard "expected committed spend left":
+ * For the agent's `can_i_afford` tool and the dashboard "expected committed spend left":
  * sums typical amounts of active, non-ignored recurring series whose next
  * expected charge falls between today (exclusive) and end-of-month (inclusive).
  *

@@ -24,7 +24,7 @@ interface Plan {
 
 // Generates plausible Sydney-flavoured AUD transactions across the last ~60 days.
 // Hardcoded (no randomness) so re-seeding produces identical data — easier to
-// reason about in dev. Slice 3 will replace this with real Basiq data.
+// reason about in dev. Real bank data comes from the Basiq sync.
 const PLAN: Plan[] = [
   // --- Income (positive amounts) — paychecks every 14 days ---
   { daysAgo: 2, category: "income", dollars: 4500, description: "ACME PTY LTD SALARY", merchant: "ACME PTY LTD" },

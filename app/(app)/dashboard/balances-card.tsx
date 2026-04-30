@@ -162,8 +162,8 @@ function RiskCallout({ forecast }: { forecast: CashflowForecast }) {
 
 /**
  * Inline SVG sparkline of projected balance over the forecast window. Pure
- * static SVG — no Recharts yet (that's Slice 10). Reads the first 30 days
- * of the forecast so the dashboard stays compact.
+ * static SVG — Recharts is reserved for the trends page. Reads the first 30
+ * days of the forecast so the dashboard stays compact.
  */
 function Sparkline({ forecast }: { forecast: CashflowForecast }) {
   const points = forecast.forecast.slice(0, 30);

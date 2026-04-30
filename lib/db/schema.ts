@@ -19,7 +19,7 @@ import {
 // foreign key — Supabase owns the auth schema, and RLS policies (below) provide
 // the actual isolation. This matches Supabase's recommended pattern.
 
-// Fixed v1 category set. Adding new values requires a migration; we treat this
+// Fixed category set. Adding new values requires a migration; we treat this
 // as a slow-changing axis.
 //
 // Categories are SUBSTANCE buckets. "Subscriptions" deliberately isn't here:
@@ -84,7 +84,7 @@ export const budgets = pgTable(
 // Bank connection: one row per (user, Basiq connection).
 // basiq_user_id is denormalised — Basiq has one user object per app user, but we
 // copy that id onto each connection row to avoid a separate user_profiles table
-// for one column. Slice 5+ may consolidate.
+// for one column.
 export const bankConnections = pgTable(
   "bank_connections",
   {
@@ -125,7 +125,7 @@ export const bankConnections = pgTable(
 ).enableRLS();
 
 // Negative amount_cents = outflow (spend). Positive = inflow (income/refund).
-// category is nullable in v1 because Slice 4's Gemini-driven resolver fills it in later.
+// category is nullable because the Gemini-driven merchant resolver fills it in later.
 export const transactions = pgTable(
   "transactions",
   {
@@ -140,11 +140,11 @@ export const transactions = pgTable(
     accountId: text("account_id"),
     pending: boolean("pending").notNull().default(false),
     isTransfer: boolean("is_transfer").notNull().default(false),
-    // Slice 4 (merchant resolution) populates these:
+    // Populated by the merchant resolver:
     merchantName: text("merchant_name"),
     needsReview: boolean("needs_review").notNull().default(false),
     confidence: numeric("confidence", { precision: 4, scale: 3 }),
-    // Slice 5: when this txn is a leg of a detected recurring series.
+    // Set when this txn is a leg of a detected recurring series.
     recurringExpenseId: uuid("recurring_expense_id").references(() => recurringExpenses.id, {
       onDelete: "set null",
     }),
@@ -187,7 +187,7 @@ export const transactions = pgTable(
 export const aliasSourceEnum = pgEnum("alias_source", ["user", "gemini"]);
 
 // Per-user mapping from a raw transaction description (as it appears on the
-// statement) to a canonical merchant + category. Filled in by the Slice 4
+// statement) to a canonical merchant + category. Populated by the merchant
 // resolver and by user confirmations from the needs-review queue.
 export const merchantAliases = pgTable(
   "merchant_aliases",
@@ -241,14 +241,13 @@ export const cadenceEnum = pgEnum("cadence", CADENCE_VALUES);
 // (not deleted) so the user can see "this stopped" and the agent has historical context.
 export const recurringStatusEnum = pgEnum("recurring_status", ["active", "inactive"]);
 
-// detected = produced by the Slice 5 scanner from real transactions.
+// detected = produced by the recurring scanner from real transactions.
 // manual   = user added it themselves on the Subscriptions page.
 export const recurringSourceEnum = pgEnum("recurring_source", ["detected", "manual"]);
 
-// Slice 7: recurring streams flow either out (subscriptions, bills, rent —
-// the original Slice-5 case) or in (paychecks, regular freelance invoices,
-// rental income). Detection logic is identical; this just records which way
-// the money moves.
+// Recurring streams flow either out (subscriptions, bills, rent) or in
+// (paychecks, regular freelance invoices, rental income). Detection logic is
+// identical; this just records which way the money moves.
 export const recurringDirectionEnum = pgEnum("recurring_direction", ["expense", "income"]);
 
 // One row per detected (or user-entered) recurring series. typical_amount_cents
@@ -316,19 +315,19 @@ export const recurringExpenses = pgTable(
 
 // User-level settings. One row per user, keyed on user_id directly (no surrogate
 // id) — there's never more than one settings record per user. monthly_income_cents
-// holds the user's best estimate of monthly take-home; Slice 7 income detection
-// will surface a "your detected income is X, you said Y" reconciliation rather
-// than overwriting it. monthly_savings_target_cents is the user's monthly
-// savings goal (defaults to 15-20% of income at onboarding; user can adjust).
+// holds the user's best estimate of monthly take-home; income detection surfaces
+// "your detected income is X, you said Y" reconciliation rather than overwriting it.
+// monthly_savings_target_cents is the user's monthly savings goal (defaults to
+// 15-20% of income at onboarding; user can adjust).
 export const userSettings = pgTable(
   "user_settings",
   {
     userId: uuid("user_id").primaryKey(),
     monthlyIncomeCents: integer("monthly_income_cents"),
     monthlySavingsTargetCents: integer("monthly_savings_target_cents"),
-    // Slice 8: cashflow simulator's "danger zone" floor. Any day projected to
-    // drop below this triggers a cashflow risk alert. Defaults to $200 — a
-    // small but concrete buffer so the user sees risk before hitting zero.
+    // Cashflow simulator's "danger zone" floor. Any day projected to drop
+    // below this triggers a cashflow risk alert. Defaults to $200 — a small
+    // but concrete buffer so the user sees risk before hitting zero.
     cashflowBufferCents: integer("cashflow_buffer_cents").notNull().default(20000),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -358,9 +357,9 @@ export const userSettings = pgTable(
   ],
 ).enableRLS();
 
-// Slice 6: chat with the AI agent. One rolling session per user for v1, but
-// the schema supports multiple — a "New chat" button just inserts a new
-// session row and we read from the latest.
+// Chat with the AI agent. One rolling session per user today, but the schema
+// supports multiple — a "New chat" button just inserts a new session row and
+// we read from the latest.
 export const chatSessions = pgTable(
   "chat_sessions",
   {
@@ -479,14 +478,14 @@ export const dailyBriefings = pgTable(
   ],
 ).enableRLS();
 
-// Slice 8: account-level snapshots. One row per Basiq account. Latest balance
-// only — we don't keep a history (that's a v2 concern). The cashflow simulator
-// reads the current balance as its starting point for the forward projection.
+// Account-level snapshots. One row per Basiq account. Latest balance only —
+// no history kept. The cashflow simulator reads the current balance as its
+// starting point for the forward projection.
 //
 // account_class.type is what Basiq returns ('transaction', 'savings', 'credit-
 // card', 'loan', etc). The cashflow forecast sums `transaction` accounts only —
 // savings shouldn't be drawn for daily flow, and credit cards are negative
-// balances that increase as you spend (different math, deferred to v2).
+// balances that increase as you spend (different math, not yet handled).
 export const accounts = pgTable(
   "accounts",
   {
@@ -554,9 +553,9 @@ export type NewDailyBriefing = typeof dailyBriefings.$inferInsert;
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
 
-// Slice 9: proactive alerts. The system raises these unprompted when anomaly
-// detectors fire on each scan. Cards render on /dashboard; agent reads via
-// get_alerts(). Severity drives sort order and the briefing's lead.
+// Proactive alerts. The system raises these unprompted when anomaly detectors
+// fire on each scan. Cards render on /dashboard; agent reads via get_alerts().
+// Severity drives sort order and the briefing's lead.
 export const alertKindEnum = pgEnum("alert_kind", [
   "transaction_anomaly", // single transaction unusually large for its (category, merchant) pair
   "price_change", // a recurring leg's amount differs >15% from typical

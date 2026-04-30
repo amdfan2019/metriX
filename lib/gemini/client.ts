@@ -17,7 +17,7 @@ export function geminiClient(): GoogleGenAI {
   return cached;
 }
 
-/** Default model. Slice 4+ uses Gemini 3 Flash preview for structured output + speed. */
+/** Default model. Gemini 3 Flash preview gives structured output + speed. */
 export const GEMINI_MODEL = "gemini-3-flash-preview";
 
 // Test-only utility — clears the singleton so tests can swap the env mid-run.

@@ -44,8 +44,8 @@ export async function syncTransactionsForUser(
     const rows = txns.map((t) => ({
       user_id: appUserId,
       description: t.description ?? "(no description)",
-      // Slice 4 fills category in via Gemini. Until then, leave NULL — calc
-      // skips uncategorised transactions from category-budget burns.
+      // category is filled in later by the Gemini-driven resolver. Leaving
+      // NULL — calc skips uncategorised transactions from category-budget burns.
       category: null,
       amount_cents: Math.round(parseFloat(t.amount) * 100),
       transaction_date:
@@ -64,8 +64,8 @@ export async function syncTransactionsForUser(
 
   const transfers = await detectTransfersForUser(supabase, appUserId);
 
-  // Pull the latest account balances. Drives the cashflow forecast (Slice 8)
-  // and the dashboard balance card. Failures here don't fail the whole sync —
+  // Pull the latest account balances. Drives the cashflow forecast and the
+  // dashboard balance card. Failures here don't fail the whole sync —
   // transactions are the primary signal.
   let accountsUpserted = 0;
   try {

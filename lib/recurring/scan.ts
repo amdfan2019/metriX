@@ -120,9 +120,8 @@ export async function rescanRecurringForUser(
   }
   const detectorInput = candidates.filter((c) => !claimedByManual.has(c.id));
 
-  // 4. Detect series — once for outflows (the original Slice 5 case), once
-  // for inflows (Slice 7: paycheck recurring detection). Same algorithm,
-  // different input filter.
+  // 4. Detect series — once for outflows (subscriptions, bills) and once for
+  // inflows (paychecks, recurring income). Same algorithm, different filter.
   const detected = [
     ...detectRecurringSeries(detectorInput, { direction: "expense" }),
     ...detectRecurringSeries(detectorInput, { direction: "income" }),
